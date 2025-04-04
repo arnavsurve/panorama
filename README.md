@@ -1,2 +1,3 @@
 # panorama
-SF Hacks 2025
+
+news, the full spectrum
