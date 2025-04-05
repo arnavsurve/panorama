@@ -1,35 +1,74 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import './App.css';
+import { useState } from 'react';
+import { HiArrowCircleUp } from 'react-icons/hi';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [hasSearched, setHasSearched] = useState(false);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    setLoading(true);
+
+    // Simulated API call
+    setTimeout(() => {
+      setLoading(false);
+      setHasSearched(true);
+      // You can place the real API call logic here
+      console.log(`Searching for: ${query}`);
+    }, 3000);
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className='min-h-screen bg-neutral-900 text-white font-mono flex'>
+      <div
+        className={`
+          transition-all duration-700 ease-in-out w-full
+          flex flex-col items-center px-4
+          ${hasSearched ? 'pt-10' : 'justify-center h-screen'}
+        `}
+      >
+        <h1
+          className={`
+            text-4xl mb-8 transition-all duration-700 ease-in-out
+            ${hasSearched ? 'text-2xl text-left w-full max-w-xl ml-auto mr-auto' : 'text-center'}
+          `}
+        >
+          panorama
+        </h1>
+
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-xl mx-auto"
+        >
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              disabled={loading}
+              className="w-full p-4 pr-12 bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none transition-all duration-300 disabled:opacity-50"
+              placeholder="What's happening in Gaza?"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="absolute right-2 px-2 py-2 text-white rounded-md transition-colors cursor-pointer disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <HiArrowCircleUp className="w-8 h-8 transition-transform hover:scale-110" />
+              )}
+            </button>
+          </div>
+        </form>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
 
-export default App
+export default App;
