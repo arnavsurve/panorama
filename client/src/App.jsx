@@ -70,7 +70,7 @@ function App() {
       <div className={`flex flex-col items-center transition-all duration-700 ease-in-out ${hasSearched ? '' : 'flex-1 justify-center'}`}>
         {/* Title and last search */}
         <div className={`transition-all duration-700 ease-in-out w-full ${hasSearched ? 'pt-10' : ''}`}>
-          <h1 className="text-4xl text-center mb-8">panorama</h1>
+          <h1 className="text-4xl text-center mb-6">📰 panorama</h1>
           {hasSearched && (
             <p className="text-center text-neutral-400 text-md transition-opacity duration-500 animate-fade-in">
               <span className="text-gray-500">{'>'} {lastQuery}</span>
