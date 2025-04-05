@@ -2,6 +2,7 @@ import './App.css';
 import { useState, useEffect } from 'react';
 import { HiArrowCircleUp } from 'react-icons/hi';
 import ArticleGrid from './components/ArticleGrid';
+import { getRandomLoadingMessage } from './utils';
 
 function App() {
   const [hasSearched, setHasSearched] = useState(false);
@@ -11,6 +12,18 @@ function App() {
   const [results, setResults] = useState(null);
   const [showResults, setShowResults] = useState(false);
   const [error, setError] = useState(null);
+  const [loadingMessage, setLoadingMessage] = useState('');
+
+  useEffect(() => {
+    let interval;
+    if (loading) {
+      setLoadingMessage(getRandomLoadingMessage());
+      interval = setInterval(() => {
+        setLoadingMessage(getRandomLoadingMessage());
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const fetchResults = async (searchQuery) => {
     try {
@@ -22,7 +35,7 @@ function App() {
         },
         body: JSON.stringify({
           query: searchQuery,
-          limit: 9, // 3 articles from each leaning
+          limit: 12,
         }),
       });
       
@@ -86,7 +99,10 @@ function App() {
                 <input
                   type="text"
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setLastQuery(e.target.value);
+                  }}
                   disabled={loading}
                   className="w-full p-4 pr-12 bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none transition-all duration-300 disabled:opacity-50"
                   placeholder={placeholderText}
@@ -106,7 +122,13 @@ function App() {
             </form>
           </div>
         )}
-      </div>
+
+      {/* Loading message under last search text */}
+      {loading && (
+        <div className="w-full max-w-xl mx-auto mt-4 text-center text-neutral-400 animate-fade-in-out">
+          {loadingMessage}
+        </div>
+      )}
       
       {/* Error message */}
       {error && (
@@ -114,6 +136,8 @@ function App() {
           {error}
         </div>
       )}
+      </div>
+      
       
       {/* Article Grid section - appears between title and bottom search bar */}
       {hasSearched && (

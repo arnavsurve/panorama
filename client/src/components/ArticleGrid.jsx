@@ -10,12 +10,12 @@ const ArticleCard = ({ article }) => {
       rel="noopener noreferrer" 
       className="block bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer"
     >
-      {og_image && (
+      {og_image && og_image.trim() !== '' && (
         <div className="h-40 overflow-hidden">
           <img src={og_image} alt={title} className="w-full h-full object-cover" />
         </div>
       )}
-      <div className="p-4">
+      <div className={`p-4 ${og_image ? '' : 'py-6'}`}>
         <div className="flex items-center mb-2">
           {favicon_url && (
             <img src={favicon_url} alt={source_name} className="w-4 h-4 mr-2" />

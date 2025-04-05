@@ -20,12 +20,25 @@
   }
 }
 
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+.min-h-screen {
+  background: linear-gradient(to bottom, #0d0d0d, #333333); /* Dark to slightly lighter */
+}
+
 .animate-fade-in {
   animation: fadeIn 0.7s ease-in-out forwards;
 }
 
 .animate-fade-in-up {
   animation: fadeInUp 0.9s ease-in-out forwards;
+}
+
+.animate-fade-in-out {
+  animation: fadeInOut 3s infinite;
 }
 
 /* Hide scrollbar but allow scrolling */
