@@ -106,6 +106,12 @@ class NewsRequest(BaseModel):
 class FollowUpRequest(BaseModel):
     question: str
 
+class MultiArticleFollowUpRequest(BaseModel):
+    question: str
+    search_query_id: Optional[str] = None
+    user_id: Optional[str] = None
+    max_articles: Optional[int] = 10
+    articles: Optional[List[Dict[str, Any]]] = None  # Allow passing full article data
 
 class NewsSource(BaseModel):
     title: str
@@ -127,6 +133,7 @@ class NewsResponse(BaseModel):
     sources: List[NewsSource]
     statistics: Dict[str, int]
     timeline_positioning: Optional[Dict[str, float]] = None
+    queryId: Optional[str] = None
 
 class RegisterRequest(BaseModel):
     email: str
@@ -644,16 +651,15 @@ async def query(request: NewsRequest):
     """
     Fetch news articles from across the political spectrum based on the query.
     """
-    logger.info(f"Received query request: {request.query}")
-    logger.info(f"Request details: limit={request.limit}, api_key_provided={'Yes' if request.api_key else 'No'}")
-    
+    start_time = datetime.now()
+    logger.info(f"Processing query: '{request.query}'")
+
+    # Use provided API key or fallback to system key
+    api_key = request.api_key or PERPLEXITY_API_KEY
+    if not api_key:
+        return {"error": "No API key provided and no system key available"}
+
     try:
-        # Use API key from request if provided, otherwise use environment variable
-        api_key = request.api_key or PERPLEXITY_API_KEY
-
-        if not api_key:
-            raise HTTPException(status_code=401, detail="API key is required")
-
         # If no cached results, proceed with API calls and scraping
         logger.info(f"Fetching new results for query: {request.query}")
 
@@ -1011,11 +1017,38 @@ async def query(request: NewsRequest):
         # Ensure stats is logged after it is defined
         logger.info(f"Returning {len(enriched_sources)} sources with stats: {stats}")
         
+        # Save query to MongoDB for history and tracking
+        query_doc = {
+            "query": request.query,
+            "timestamp": datetime.now(),
+            "sources_count": len(enriched_sources),
+            "source_ids": [str(source["_id"]) for source in enriched_sources if "_id" in source],
+            "leaning_counts": stats,
+        }
+        
+        # Add user ID if provided
+        if request.user_id:
+            query_doc["user_id"] = request.user_id
+            
+            # Also save to search history collection for the user
+            search_history_doc = {
+                "user_id": request.user_id,
+                "query": request.query,
+                "timestamp": datetime.now(),
+                "source_ids": [str(source["_id"]) for source in enriched_sources if "_id" in source],
+            }
+            await search_history_collection.insert_one(search_history_doc)
+            
+        # Insert the query document and get the ID
+        query_result = await queries_collection.insert_one(query_doc)
+        query_id = str(query_result.inserted_id)
+        
         response = NewsResponse(
             query=request.query,
             sources=enriched_sources,
             statistics=stats,
             timeline_positioning=timeline_positioning,
+            queryId=query_id,
         )
         
         logger.info(f"Query response generated successfully with {len(enriched_sources)} sources")
@@ -1338,6 +1371,127 @@ async def add_bookmark(request: BookmarkRequest):
     except Exception as e:
         logger.error(f"Error adding bookmark: {str(e)}")
         raise HTTPException(status_code=500, detail="Error adding bookmark")
+
+@app.post("/multi_followup")
+async def multi_article_followup(request: MultiArticleFollowUpRequest):
+    """Answer a follow-up question using content from multiple articles provided in the request."""
+    try:
+        logger.info(
+            f"Processing multi-article follow-up question: {request.question}"
+        )
+        
+        if not OPENAI_API_KEY:
+            return {
+                "question": request.question,
+                "answer": "Sorry, this feature requires an OpenAI API key to be configured.",
+            }
+        
+        # Check if articles are provided
+        if not request.articles or len(request.articles) == 0:
+            return {
+                "question": request.question,
+                "answer": "No articles provided to answer your question.",
+            }
+            
+        logger.info(f"Using {len(request.articles)} articles provided in request")
+        articles = request.articles
+        
+        article_info = []
+        
+        article_texts = []
+        for article in articles:
+            if article.get("text"):
+                # Truncate very long articles to avoid token limits
+                truncated_text = article.get("text", "")[:3500]
+                
+                # Include title and source directly in the text for better context
+                article_header = f"Title: {article.get('title', 'Unknown Title')}\nSource: {article.get('source_name', 'Unknown Source')}\n\n"
+                
+                # Include metadata if available
+                metadata_text = ""
+                if article.get("metadata"):
+                    metadata = article.get("metadata")
+                    # Convert metadata to readable format
+                    metadata_lines = []
+                    for key, value in metadata.items():
+                        if isinstance(value, dict):
+                            continue  # Skip nested dictionaries to avoid complexity
+                        if key not in ["raw_html", "error", "status_code"]:
+                            metadata_lines.append(f"{key.replace('_', ' ').title()}: {value}")
+                    
+                    if metadata_lines:
+                        metadata_text = "\n\nDocument Metadata:\n" + "\n".join(metadata_lines)
+                
+                article_texts.append(article_header + truncated_text + metadata_text)
+                article_info.append({
+                    "id": str(article.get("_id")) if "_id" in article else "from_frontend",
+                    "title": article.get("title", "Unknown Title"),
+                    "source_name": article.get("source_name", "Unknown Source"),
+                    "url": article.get("url", "#"),
+                })
+        
+        # Return early if no articles have text
+        if not article_texts:
+            return {
+                "question": request.question,
+                "answer": "Sorry, the articles do not contain any text to analyze.",
+            }
+            
+        # Combine all truncated article text
+        all_sources = "\n\n---\n\n".join([f"SOURCE {i+1}:\n{text}" for i, text in enumerate(article_texts)])
+        
+        # Limit total text to avoid token limits (12000 chars is around 3000 tokens)
+        if len(all_sources) > 12000:
+            all_sources = all_sources[:12000] + "..."
+            
+        # Import OpenAI client
+        from openai import OpenAI
+        
+        # Initialize client
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        # Create system message
+        system_message = "You are a helpful assistant analyzing news articles to answer user questions. "
+        system_message += "Use the information from the provided articles to answer questions as thoroughly as possible. "
+        system_message += "Synthesize information across multiple articles when relevant. "
+        system_message += "If the articles contain even partial or indirect information related to the question, try to provide that information. "
+        system_message += "Only state that information is not available if the articles truly contain nothing relevant to the question. "
+        system_message += "When referring to information from a specific article, include the source number in parentheses like (Source 1), (Source 2), etc. "
+        system_message += "Format your response in Markdown for better readability."
+        
+        # Create user message
+        user_message = f"Here are the articles:\n\n{all_sources}\n\nQuestion: {request.question}\n\nProvide a helpful answer based on these articles. If the articles contain any information that could help address the question, even indirectly, please include it. Always reference the source numbers when pulling information from specific articles."
+        
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o",  # Using 16k model for longer context
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_message,
+                },
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.5,  # Slightly higher temperature for more comprehensive responses
+            max_tokens=1000,  # Increased token limit for more detailed answers
+        )
+        
+        # Extract answer from response
+        answer = response.choices[0].message.content.strip()
+        
+        return {
+            "question": request.question,
+            "answer": answer,
+            "articles": article_info,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing multi-article followup: {str(e)}")
+        logger.exception(e)
+        return {
+            "question": request.question,
+            "answer": f"Sorry, an error occurred while processing your question: {str(e)}",
+        }
 
 if __name__ == "__main__":
     import uvicorn

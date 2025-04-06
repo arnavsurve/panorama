@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { FaRegBookmark, FaBookmark } from 'react-icons/fa';
+import FollowUpQuestion from './FollowUpQuestion';
 
 const ArticleCard = ({ article, onArticleClick }) => {
-  const { _id, title, source_name, political_leaning, political_score, published_date, favicon_url, og_image, url, metadata, text } = article;
+  const { _id, title, source_name, political_leaning, political_score, published_date, favicon_url, og_image, url, metadata, } = article;
   const [isBookmarked, setIsBookmarked] = useState(false);
 
   // Check if article has HTTP error
@@ -175,9 +176,18 @@ const ArticleCard = ({ article, onArticleClick }) => {
 };
 
 const ArticleGrid = ({ results, isVisible, onArticleClick }) => {
-  if (!results) return null;
+  const [followUpLoading, setFollowUpLoading] = useState(false);
+  
+  // Early return if no results
+  if (!results || !results.sources || results.sources.length === 0) {
+    return (
+      <div className="w-full max-w-6xl mx-auto text-center p-8">
+        <p className="text-neutral-400">No results found. Try a different search query.</p>
+      </div>
+    );
+  }
 
-  const { sources } = results;
+  const { sources, queryId } = results;
 
   // Filter out articles with errors
   const filteredSources = sources.filter(article => {
@@ -223,6 +233,15 @@ const ArticleGrid = ({ results, isVisible, onArticleClick }) => {
             </div>
           </div>
         </div>
+        
+        {/* Follow-up question section */}
+        <FollowUpQuestion 
+          queryId={queryId} 
+          userId={localStorage.getItem('userId')} 
+          isLoading={followUpLoading} 
+          setIsLoading={setFollowUpLoading}
+          articleData={filteredSources} 
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left Column */}
