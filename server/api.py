@@ -634,91 +634,6 @@ async def query(request: NewsRequest):
         if not api_key:
             raise HTTPException(status_code=401, detail="API key is required")
 
-        # Check if we have cached results for this query
-        query_hash = hashlib.md5(request.query.encode()).hexdigest()
-        cached_query = await queries_collection.find_one({"query_hash": query_hash})
-
-        # Use cached results if available and less than 1 hour old
-        if (
-            cached_query
-            and (
-                datetime.now() - datetime.fromisoformat(cached_query["timestamp"])
-            ).total_seconds()
-            < 3600
-        ):
-            logger.info(f"Using cached results for query: {request.query}")
-
-            # Log the titles from cached results for debugging
-            if cached_query.get("source_ids"):
-                logger.info(f"Cached article titles:")
-                from bson.objectid import ObjectId
-
-                for i, source_id in enumerate(cached_query["source_ids"][:3]):
-                    source = await sources_collection.find_one(
-                        {"_id": ObjectId(source_id)}
-                    )
-                    if source:
-                        logger.info(
-                            f"  {i+1}. Title: '{source.get('title', 'No title')}' | URL: {source.get('url', 'No URL')}"
-                        )
-
-            # Fetch the stored sources
-            source_ids = cached_query.get("source_ids", [])
-            sources = []
-
-            if source_ids:
-                from bson.objectid import ObjectId
-
-                try:
-                    # Convert string IDs to ObjectId
-                    object_ids = [
-                        ObjectId(id) for id in source_ids if ObjectId.is_valid(id)
-                    ]
-
-                    if object_ids:
-                        cursor = sources_collection.find({"_id": {"$in": object_ids}})
-                        sources_data = await cursor.to_list(length=100)
-
-                        for source_data in sources_data:
-                            # Convert MongoDB _id to string for serialization
-                            source_data["_id"] = str(source_data["_id"])
-                            # Clean up formatting
-                            cleaned_source = clean_source_formatting(source_data)
-                            sources.append(NewsSource(**cleaned_source))
-                except Exception as e:
-                    logger.error(f"Error fetching cached sources: {str(e)}")
-
-            # Limit sources to the requested number
-            sources = sources[: request.limit]
-
-            # Calculate statistics
-            left_count = sum(1 for s in sources if s.political_leaning == "left")
-            center_count = sum(1 for s in sources if s.political_leaning == "center")
-            right_count = sum(1 for s in sources if s.political_leaning == "right")
-
-            stats = {
-                "total": len(sources),
-                "left_count": left_count,
-                "center_count": center_count,
-                "right_count": right_count,
-            }
-
-            # Calculate timeline positioning
-            political_scores = [
-                s.political_score for s in sources if s.political_score is not None
-            ]
-            min_score = min(political_scores) if political_scores else 1.0
-            max_score = max(political_scores) if political_scores else 10.0
-
-            timeline_positioning = {"min_score": min_score, "max_score": max_score}
-
-            return NewsResponse(
-                query=request.query,
-                sources=sources,
-                statistics=stats,
-                timeline_positioning=timeline_positioning,
-            )
-
         # If no cached results, proceed with API calls and scraping
         logger.info(f"Fetching new results for query: {request.query}")
 
@@ -889,43 +804,6 @@ async def query(request: NewsRequest):
                         "temp_" + hashlib.md5(source["url"].encode()).hexdigest()
                     )
                     enriched_sources.append(NewsSource(**cleaned_source))
-
-        # Store the query and results in cache
-        try:
-            await queries_collection.insert_one(
-                {
-                    "query": request.query,
-                    "query_hash": query_hash,
-                    "timestamp": datetime.now().isoformat(),
-                    "source_ids": source_ids,
-                }
-            )
-            logger.info(f"Cached query results for: {request.query}")
-        except Exception as e:
-            logger.error(f"Error caching query: {str(e)}")
-
-        # Calculate statistics
-        left_count = sum(1 for s in enriched_sources if s.political_leaning == "left")
-        center_count = sum(
-            1 for s in enriched_sources if s.political_leaning == "center"
-        )
-        right_count = sum(1 for s in enriched_sources if s.political_leaning == "right")
-
-        stats = {
-            "total": len(enriched_sources),
-            "left_count": left_count,
-            "center_count": center_count,
-            "right_count": right_count,
-        }
-
-        # Calculate timeline positioning
-        political_scores = [
-            s.political_score for s in enriched_sources if s.political_score is not None
-        ]
-        min_score = min(political_scores) if political_scores else 1.0
-        max_score = max(political_scores) if political_scores else 10.0
-
-        timeline_positioning = {"min_score": min_score, "max_score": max_score}
 
         logger.info(f"Returning {len(enriched_sources)} sources with stats: {stats}")
 
