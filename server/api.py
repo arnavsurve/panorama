@@ -637,6 +637,20 @@ async def query(request: NewsRequest):
         # If no cached results, proceed with API calls and scraping
         logger.info(f"Fetching new results for query: {request.query}")
 
+        # Initialize stats at the start of the function
+        stats = {
+            "total": 0,
+            "left_count": 0,
+            "center_count": 0,
+            "right_count": 0,
+        }
+
+        # Initialize timeline_positioning
+        political_scores = []
+        min_score = 1.0
+        max_score = 10.0
+        timeline_positioning = {"min_score": min_score, "max_score": max_score}
+
         # Fetch articles from different political perspectives
         leanings = ["left", "center", "right"]
         all_articles = []
@@ -805,6 +819,28 @@ async def query(request: NewsRequest):
                     )
                     enriched_sources.append(NewsSource(**cleaned_source))
 
+        # Ensure stats is defined before use
+        left_count = sum(1 for s in enriched_sources if s.political_leaning == "left")
+        center_count = sum(1 for s in enriched_sources if s.political_leaning == "center")
+        right_count = sum(1 for s in enriched_sources if s.political_leaning == "right")
+
+        stats = {
+            "total": len(enriched_sources),
+            "left_count": left_count,
+            "center_count": center_count,
+            "right_count": right_count,
+        }
+
+        # Calculate timeline positioning
+        political_scores = [
+            s.political_score for s in enriched_sources if s.political_score is not None
+        ]
+        min_score = min(political_scores) if political_scores else 1.0
+        max_score = max(political_scores) if political_scores else 10.0
+
+        timeline_positioning = {"min_score": min_score, "max_score": max_score}
+
+        # Ensure stats is logged after it is defined
         logger.info(f"Returning {len(enriched_sources)} sources with stats: {stats}")
 
         # Log the titles from the results for debugging
@@ -813,7 +849,6 @@ async def query(request: NewsRequest):
             logger.info(
                 f"  {i+1}. Title: '{source.title if source.title else 'No title'}' | URL: {source.url if source.url else 'No URL'}"
             )
-
 
         return NewsResponse(
             query=request.query,
@@ -840,14 +875,13 @@ async def get_source(source_id: str):
 
         # Handle temporary IDs that may not be in MongoDB
         if source_id.startswith("temp_"):
-            raise HTTPException(
-                status_code=404, detail="Temporary source ID not found in database"
-            )
+            logger.warning("Temporary source ID not found in database")
+            return None
 
         # Validate the ID format
         if not ObjectId.is_valid(source_id):
             logger.warning(f"Invalid ObjectId format: {source_id}")
-            raise HTTPException(status_code=400, detail="Invalid source ID format")
+            return None
 
         object_id = ObjectId(source_id)
 
@@ -856,19 +890,16 @@ async def get_source(source_id: str):
 
         if not source:
             logger.warning(f"Source not found with ID: {source_id}")
-            raise HTTPException(status_code=404, detail="Source not found")
+            return None
 
         # Convert MongoDB _id to string for response
         source["_id"] = str(source["_id"])
 
         logger.info(f"Successfully retrieved source: {source['title']}")
         return source
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
     except Exception as e:
         logger.error(f"Unexpected error in get_source: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        return None
 
 
 @app.post("/followup/{source_id}")
