@@ -19,6 +19,7 @@ import asyncio
 from bs4 import BeautifulSoup
 import hashlib
 from pydantic import BaseModel
+from bson.objectid import ObjectId
 
 # Enable nested asyncio for concurrent scraping
 nest_asyncio.apply()
@@ -961,6 +962,57 @@ async def query(request: NewsRequest):
         )
         
         logger.info(f"Query response generated successfully with {len(enriched_sources)} sources")
+
+        # Append search to user's search history
+        if request.user_id:
+            try:
+                # Validate user_id format
+                if not ObjectId.is_valid(request.user_id):
+                    logger.warning(f"Invalid user ID format: {request.user_id}")
+                else:
+                    user = await users_collection.find_one({"_id": ObjectId(request.user_id)})
+                    if user:
+                        # Create a serializable version of sources (without Pydantic models)
+                        serializable_sources = []
+                        for source in enriched_sources:
+                            # Convert each source to a dict for serialization
+                            source_dict = {
+                                "title": source.title,
+                                "url": source.url,
+                                "source_name": source.source_name,
+                                "political_leaning": source.political_leaning,
+                                "political_score": source.political_score,
+                                "snippet": source.snippet,
+                                "domain": source.domain,
+                                "favicon_url": source.favicon_url,
+                                # Include other fields that are serializable
+                            }
+                            serializable_sources.append(source_dict)
+                        
+                        # Create search entry with serializable data
+                        search_entry = {
+                            "query": request.query,
+                            "timestamp": datetime.now().isoformat(),
+                            "sources": serializable_sources,
+                            "statistics": stats,
+                            "timeline_positioning": timeline_positioning
+                        }
+                        
+                        # Append the new search entry
+                        search_history = user.get("searchHistory", [])
+                        search_history.append(search_entry)
+                        
+                        # Update the user's document
+                        await users_collection.update_one(
+                            {"_id": ObjectId(request.user_id)},
+                            {"$set": {"searchHistory": search_history}}
+                        )
+                        logger.info(f"Updated search history for user: {request.user_id}")
+            except Exception as e:
+                # Log the error but don't fail the entire request
+                logger.error(f"Error updating search history: {str(e)}")
+                # Continue with the response even if search history update fails
+
         return response
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
@@ -971,8 +1023,6 @@ async def query(request: NewsRequest):
 async def get_source(source_id: str):
     """Retrieve a specific news source by ID."""
     try:
-        from bson.objectid import ObjectId
-
         logger.info(f"Fetching source with ID: {source_id}")
 
         # Handle temporary IDs that may not be in MongoDB
@@ -1008,8 +1058,6 @@ async def get_source(source_id: str):
 async def follow_up_question(source_id: str, request: FollowUpRequest):
     """Answer a follow-up question about a specific source using its content."""
     try:
-        from bson.objectid import ObjectId
-
         logger.info(
             f"Processing follow-up question for source {source_id}: {request.question}"
         )

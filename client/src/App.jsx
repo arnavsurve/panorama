@@ -10,7 +10,7 @@ import { getRandomLoadingMessage } from './utils';
 // New Landing Page Component
 function LandingPage() {
   const navigate = useNavigate();
-  
+
   return (
     <div className="min-h-screen bg-neutral-900 text-white font-mono flex flex-col items-center px-4">
       <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col items-center justify-center">
@@ -18,16 +18,16 @@ function LandingPage() {
         <p className="text-xl text-center text-neutral-300 mb-10 max-w-lg">
           get the whole picture with news from all perspectives.
         </p>
-        
+
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-          <button 
-            onClick={() => navigate('/register')} 
+          <button
+            onClick={() => navigate('/register')}
             className="flex-1 p-4 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 text-lg cursor-pointer"
           >
             get started
           </button>
-          <button 
-            onClick={() => navigate('/login')} 
+          <button
+            onClick={() => navigate('/login')}
             className="flex-1 p-4 bg-transparent border border-neutral-700 text-white rounded-lg transition-colors hover:bg-neutral-800 text-lg cursor-pointer"
           >
             log in
@@ -49,7 +49,7 @@ function MainApp() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [selectedSource, setSelectedSource] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
+
   const navigate = useNavigate();
 
   // API URLs
@@ -90,13 +90,13 @@ function MainApp() {
       const userId = localStorage.getItem('userId');
       const payload = {
         query: searchQuery,
-        limit: 12,
+        limit: 15,
         user_id: userId,  // include the user id if available
       };
-      
+
       console.log('Sending request to:', QUERY_URL);
       console.log('Request payload:', payload);
-      
+
       const response = await fetch(QUERY_URL, {
         method: 'POST',
         headers: {
@@ -104,18 +104,20 @@ function MainApp() {
         },
         body: JSON.stringify(payload),
       });
-      
+
       console.log('Response status:', response.status);
       console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
-      
+
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('Invalid API key. Please check your Perplexity API key.');
+        } else if (response.status === 410 || response.status === 403) {
+          throw new Error(`Content not available (Error: ${response.status}).`);
         } else {
           throw new Error(`API Error: ${response.status}`);
         }
       }
-      
+
       const data = await response.json();
       console.log('Response data:', data);
       return data;
@@ -133,11 +135,22 @@ function MainApp() {
     setLoading(true);
     setShowResults(false);
     setSelectedSource(null);
+    setLastQuery(query);
 
     try {
       const apiResults = await fetchResults(query);
       if (apiResults) {
         setLastQuery(query);
+        // Log the full response to console for debugging
+        console.log('API Response:', JSON.stringify(apiResults, null, 2));
+        // Log the first few articles to see title formatting
+        if (apiResults.sources && apiResults.sources.length > 0) {
+          console.log('First 3 article titles:', apiResults.sources.slice(0, 3).map(source => ({
+            title: source.title,
+            url: source.url,
+            domain: source.domain
+          })));
+        }
         setResults(apiResults);
         setQuery('');
         setHasSearched(true);
@@ -154,13 +167,13 @@ function MainApp() {
   const handleSourceSelect = async (sourceId) => {
     try {
       setSelectedSource(null);
-      
+
       const response = await fetch(`${SOURCE_URL}/${sourceId}`);
-      
+
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`);
       }
-      
+
       const sourceData = await response.json();
       setSelectedSource(sourceData);
     } catch (err) {
@@ -174,7 +187,7 @@ function MainApp() {
   };
 
   const placeholderText = "What's happening today?";
-  
+
   return (
     <div className="min-h-screen bg-neutral-900 text-white font-mono flex flex-col transition-all duration-700 ease-in-out px-4">
       <div className="w-full fixed top-0 left-0 bg-opacity-100 flex justify-end items-center p-4 z-50">
@@ -192,14 +205,14 @@ function MainApp() {
                 null
               ) : (
                 <>
-                  <Link 
-                    to="/login" 
+                  <Link
+                    to="/login"
                     className="px-3 py-1 text-sm bg-transparent border border-neutral-700 rounded-lg hover:bg-neutral-800 transition-colors"
                   >
                     Login
                   </Link>
-                  <Link 
-                    to="/register" 
+                  <Link
+                    to="/register"
                     className="px-3 py-1 text-sm bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     Register
@@ -214,7 +227,7 @@ function MainApp() {
             </p>
           )}
         </div>
-        
+
         {/* Search bar that appears under title when not searched */}
         {!hasSearched && (
           <div className="w-full max-w-xl mx-auto transition-all duration-700 ease-in-out opacity-100">
@@ -268,33 +281,33 @@ function MainApp() {
         </div>
       )}
       </div>
-      
+
       {/* Selected Source Detail View or Article Grid */}
       {hasSearched && (
         <div className="py-8 pb-20 animate-fade-in-up">
           {selectedSource ? (
             <div className="max-w-3xl mx-auto">
-              <button 
+              <button
                 onClick={handleBackToResults}
                 className="mb-4 text-neutral-400 hover:text-white transition-colors"
               >
                 ← Back to results
               </button>
-              
-              <SourceDetail 
-                source={selectedSource} 
+
+              <SourceDetail
+                source={selectedSource}
               />
             </div>
           ) : (
-            <ArticleGrid 
-              results={results} 
-              isVisible={showResults} 
+            <ArticleGrid
+              results={results}
+              isVisible={showResults}
               onArticleClick={handleSourceSelect}
             />
           )}
         </div>
       )}
-      
+
       {/* Floating search bar that appears after search */}
       {hasSearched && (
         <div className="fixed bottom-0 left-0 right-0 z-10 search-bar-gradient pt-8 pb-4 px-4 animate-fade-in">
@@ -332,7 +345,7 @@ function MainApp() {
 // Main App with authentication routing
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
+
   // Check if user is logged in on mount
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -346,7 +359,7 @@ function App() {
     localStorage.setItem('userId', userId);
     setIsLoggedIn(true);
   };
-  
+
   return (
     <Routes>
       <Route path="/" element={isLoggedIn ? <MainApp /> : <LandingPage />} />
