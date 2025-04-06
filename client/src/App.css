@@ -25,6 +25,28 @@
   50% { opacity: 1; }
 }
 
+@keyframes settingsOpen {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes settingsClose {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+}
+
 .min-h-screen {
   background: linear-gradient(to bottom, #0d0d0d, #333333); /* Dark to slightly lighter */
 }
@@ -91,4 +113,12 @@
     rgba(245, 245, 245, 0) 70%);
   backdrop-filter: blur(8px);
   height: 120px;
+}
+
+.settings-menu {
+  animation: settingsOpen 0.3s ease-out forwards;
+}
+
+.settings-menu.hidden {
+  animation: settingsClose 0.3s ease-out forwards;
 }

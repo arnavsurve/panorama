@@ -1547,6 +1547,32 @@ async def add_bookmark(request: BookmarkRequest):
         logger.error(f"Error adding bookmark: {str(e)}")
         raise HTTPException(status_code=500, detail="Error adding bookmark")
 
+@app.get("/user/{user_id}/bookmarks")
+async def get_bookmarks(user_id: str):
+    """Retrieve a user's bookmarks."""
+    try:
+        # Validate the user ID format
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+            
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Return the user's bookmarks
+        bookmarks = user.get("bookmarks", [])
+        return bookmarks
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error retrieving bookmarks: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve bookmarks: {str(e)}")
+
+
+
+
+
 if __name__ == "__main__":
     import uvicorn
 

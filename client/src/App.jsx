@@ -210,7 +210,7 @@ function MainApp() {
         <div className={`transition-all duration-700 ease-in-out w-full ${hasSearched ? 'pt-10' : ''}`}>
           <div className="flex justify-between items-center">
             <div></div> {/* Empty div for spacing */}
-            <h1 className="text-4xl text-center mb-6">📰 panorama</h1>
+            <h1 className="text-4xl text-center mb-6 cursor-pointer" onClick={() => window.location.href = '/'}>📰 panorama</h1>
             <div className="flex space-x-2">
               {isLoggedIn ? (
                 null
