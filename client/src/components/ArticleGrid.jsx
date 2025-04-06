@@ -95,6 +95,14 @@ const ArticleCard = ({ article, onArticleClick }) => {
       className={`bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${hasError ? 'border border-amber-600/30' : ''} relative`}
       onClick={handleCardClick}
     >
+      {/* Bookmark button positioned at the top right */}
+      <button 
+        onClick={handleBookmark} 
+        className="absolute top-2 right-2 z-10 text-amber-400 hover:text-amber-500 bg-neutral-900 bg-opacity-70 p-1.5 rounded-full"
+      >
+        {isBookmarked ? <FaBookmark /> : <FaRegBookmark />}
+      </button>
+
       {og_image && !hasError && (
         <div className="h-40 overflow-hidden">
           <img
