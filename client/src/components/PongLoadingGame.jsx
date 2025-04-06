@@ -1,31 +1,27 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import './PongLoadingGame.css';
 
 const PongLoadingGame = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef(null);
   const previousTimeRef = useRef(null);
-  const scoreRef = useRef(0);
-  const [displayScore, setDisplayScore] = useState(0);
-
-  // Game constants - updated dimensions
-  const WIDTH = 360;
-  const HEIGHT = 250;
-  const PADDLE_HEIGHT = 60;
-  const PADDLE_WIDTH = 10;
-  const BALL_RADIUS = 8;
-  
-  // Game state reference object - using refs to avoid re-renders
   const gameStateRef = useRef({
-    paddleY: HEIGHT / 2 - PADDLE_HEIGHT / 2,
-    ballX: WIDTH / 2,
-    ballY: HEIGHT / 2,
+    paddleY: 200 / 2 - 50 / 2,
+    ballX: 300 / 2,
+    ballY: 200 / 2,
     ballSpeedX: 4,
     ballSpeedY: 4,
-    computerPaddleY: HEIGHT / 2 - PADDLE_HEIGHT / 2,
+    computerPaddleY: 200 / 2 - 50 / 2,
     computerSpeed: 3,
     isRunning: true
   });
+
+  // Game constants - updated dimensions
+  const WIDTH = 300;
+  const HEIGHT = 200;
+  const PADDLE_HEIGHT = 50;
+  const PADDLE_WIDTH = 8;
+  const BALL_RADIUS = 6;
 
   // Handle mouse/touch movement - optimized with throttling
   const lastMoveTimeRef = useRef(0);
@@ -77,10 +73,8 @@ const PongLoadingGame = () => {
     
     const context = canvas.getContext('2d');
     
-    // Clear with better performance
+    // Clear canvas with transparency
     context.clearRect(0, 0, WIDTH, HEIGHT);
-    context.fillStyle = 'rgba(30, 30, 30, 0.5)';
-    context.fillRect(0, 0, WIDTH, HEIGHT);
     
     // Extract values for easier access
     const { 
@@ -121,11 +115,6 @@ const PongLoadingGame = () => {
       
       // Ensure the ball moves right
       if (newBallSpeedX < 0) newBallSpeedX = -newBallSpeedX;
-      
-      // Increase score
-      scoreRef.current += 10;
-      // Only update displayed score every 5 frames for better performance
-      if (Math.random() < 0.2) setDisplayScore(scoreRef.current);
     }
     
     // Paddle collision (right - computer)
@@ -198,7 +187,6 @@ const PongLoadingGame = () => {
     }
     
     // Draw only what we need (minimizing draw calls)
-    // Background is already drawn
     
     // Draw paddles
     context.fillStyle = 'white';
@@ -217,15 +205,13 @@ const PongLoadingGame = () => {
     context.arc(ballX, ballY, BALL_RADIUS, 0, Math.PI * 2);
     context.fill();
     
-    // Draw center line (only once every 3 frames to improve performance)
-    if (Math.floor(time / 50) % 3 === 0) {
-      context.beginPath();
-      context.setLineDash([5, 15]);
-      context.moveTo(WIDTH / 2, 0);
-      context.lineTo(WIDTH / 2, HEIGHT);
-      context.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      context.stroke();
-    }
+    // Draw center line (consistently, not flashing)
+    context.beginPath();
+    context.setLineDash([5, 15]);
+    context.moveTo(WIDTH / 2, 0);
+    context.lineTo(WIDTH / 2, HEIGHT);
+    context.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    context.stroke();
     
     // Continue animation loop
     requestRef.current = requestAnimationFrame(updateGame);
@@ -235,10 +221,6 @@ const PongLoadingGame = () => {
   useEffect(() => {
     // Start the animation loop
     requestRef.current = requestAnimationFrame(updateGame);
-    
-    // Set initial score
-    scoreRef.current = 0;
-    setDisplayScore(0);
     
     // Clean up on unmount
     return () => {
@@ -266,10 +248,6 @@ const PongLoadingGame = () => {
   
   return (
     <div className="pong-container">
-      <div className="pong-header">
-        <div className="score">Score: {displayScore}</div>
-      </div>
-      
       <canvas
         ref={canvasRef}
         width={WIDTH}

@@ -111,15 +111,15 @@ function LoginPage({ onLogin }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full p-3 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4 cursor-pointer"
+            className="w-full p-3 bg-gray-600 text-white rounded-lg transition-colors hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4 cursor-pointer"
           >
             {loading ? (
               <div className="flex justify-center items-center">
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                Logging in...
+                logging in...
               </div>
             ) : (
-              'Log In'
+              'log in'
             )}
           </button>
           
@@ -131,7 +131,7 @@ function LoginPage({ onLogin }) {
                 onClick={handleRegisterRedirect}
                 className="text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
               >
-                Register
+                register
               </button>
             </p>
           </div>

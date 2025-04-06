@@ -1,11 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FaRegBookmark, FaBookmark } from 'react-icons/fa';
 
 const ArticleCard = ({ article, onArticleClick }) => {
-  const { _id, title, source_name, political_leaning, political_score, published_date, favicon_url, og_image, url, metadata } = article;
+  const { _id, title, source_name, political_leaning, political_score, published_date, favicon_url, og_image, url, metadata, text } = article;
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   // Check if article has HTTP error
   const hasError = metadata && (metadata.error || metadata.status_code);
   const statusCode = metadata?.status_code;
+
+  // Function to clean up source name
+  const cleanSourceName = (name) => {
+    if (!name) return '';
+    // Remove special characters and extra spaces
+    return name
+      .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+      .replace(/\s+/g, ' ')           // Replace multiple spaces with a single space
+      .trim();                        // Remove leading/trailing spaces
+  };
 
   // Function to get color based on political leaning
   const getLeaningColor = (leaning) => {
@@ -30,19 +42,67 @@ const ArticleCard = ({ article, onArticleClick }) => {
     }
   };
 
-  // Handle title click to open the source URL in a new tab
-  const handleTitleClick = (e) => {
-    e.stopPropagation(); // Prevent the card click event
+  // Handle card click to open the source URL in a new tab
+  const handleCardClick = () => {
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
+    // Also trigger the original onArticleClick functionality
+    onArticleClick(_id);
   };
+
+  const handleBookmark = async (e) => {
+    e.stopPropagation(); // Prevent the card click event
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      alert("Please log in to bookmark articles.");
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:8000/bookmark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          news_source: article
+        })
+      });
+
+      if (!response.ok) {
+        alert("Failed to bookmark the article. Please try again.");
+        return;
+      }
+
+      const data = await response.json();
+      if (data.message) {
+        setIsBookmarked(true);
+        console.log(data.message);
+      } else {
+        alert("Failed to bookmark the article.");
+      }
+    } catch (error) {
+      console.error("Error bookmarking article:", error);
+      alert("An error occurred while bookmarking the article.");
+    }
+  };
+  
 
   return (
     <div
-      className={`bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${hasError ? 'border border-amber-600/30' : ''}`}
-      onClick={() => onArticleClick(_id)}
+      className={`bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${hasError ? 'border border-amber-600/30' : ''} relative`}
+      onClick={handleCardClick}
     >
+      {/* Bookmark button positioned at the top right */}
+      <button 
+        onClick={handleBookmark} 
+        className="absolute top-2 right-2 z-10 text-amber-400 hover:text-amber-500 bg-neutral-900 bg-opacity-70 p-1.5 rounded-full"
+      >
+        {isBookmarked ? <FaBookmark /> : <FaRegBookmark />}
+      </button>
+
       {og_image && !hasError && (
         <div className="h-40 overflow-hidden">
           <img
@@ -50,7 +110,9 @@ const ArticleCard = ({ article, onArticleClick }) => {
             alt={title}
             className="w-full h-full object-cover"
             onError={(event) => {
-              event.target.style.display = 'none';
+              if (event.target.naturalWidth === 0) {
+                event.target.style.display = 'none';
+              }
             }}
           />
         </div>
@@ -71,14 +133,14 @@ const ArticleCard = ({ article, onArticleClick }) => {
           {favicon_url && (
             <img
               src={favicon_url}
-              alt={source_name}
+              alt={cleanSourceName(source_name)}
               className="w-4 h-4 mr-2"
               onError={(e) => {
                 e.target.style.display = 'none';
               }}
             />
           )}
-          <span className="text-neutral-400 text-xs">{source_name}</span>
+          <span className="text-neutral-400 text-xs">{cleanSourceName(source_name)}</span>
           <div
             className="ml-2 text-xs px-2 py-0.5 rounded-full"
             style={{ backgroundColor: getLeaningColor(political_leaning), color: 'white' }}
@@ -88,7 +150,6 @@ const ArticleCard = ({ article, onArticleClick }) => {
         </div>
         <h3
           className="font-semibold mb-2 line-clamp-2 hover:text-blue-400 hover:underline cursor-pointer"
-          onClick={handleTitleClick}
         >
           {title}
         </h3>
@@ -114,14 +175,14 @@ const ArticleCard = ({ article, onArticleClick }) => {
 };
 
 const ArticleGrid = ({ results, isVisible, onArticleClick }) => {
-  if (!results || !results.sources || !isVisible) return null;
+  if (!results) return null;
 
   const { sources } = results;
 
-  // Filter out any articles with 404 or 403 errors
+  // Filter out articles with errors
   const filteredSources = sources.filter(article => {
-    // Skip articles with 404 or 403 errors in metadata
-    return !(article.metadata && (article.metadata.status_code === 404 || article.metadata.status_code === 403));
+    // Skip articles with 401, 403, 404, or 500 errors in metadata
+    return !(article.metadata && (article.metadata.status_code === 401 || article.metadata.status_code === 403 || article.metadata.status_code === 404 || article.metadata.status_code === 500));
   });
 
   // Group articles by political leaning
