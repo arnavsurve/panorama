@@ -7,7 +7,7 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
-
+import bcrypt
 import httpx
 import nest_asyncio
 from bs4 import BeautifulSoup
@@ -73,6 +73,7 @@ try:
     db = mongo_client.get_default_database()  # or client['your_db_name']
     sources_collection = db.sources  # Collection to store news responses
     queries_collection = db.queries  # Collection to store queries
+    users_collection = db.users  # Collection to store users
     logger.info(f"Connected to MongoDB database: {db.name}")
 except Exception as e:
     logger.error(f"Failed to connect to MongoDB: {str(e)}")
@@ -111,6 +112,13 @@ class NewsResponse(BaseModel):
     statistics: Dict[str, int]
     timeline_positioning: Optional[Dict[str, float]] = None
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 # Helper function to clean up formatting in titles, source names, and snippets
 def clean_source_formatting(source_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -1154,6 +1162,51 @@ async def follow_up_question(source_id: str, request: FollowUpRequest):
             "source_id": source_id,
         }
 
+@app.post("/register")
+async def register(request: RegisterRequest):
+    """Register a new user."""
+    try:
+        # Check if user already exists
+        existing_user = await users_collection.find_one({"email": request.email})
+
+        if existing_user:
+            return {"error": "User already exists"}
+
+        # Hash the password
+        hashed_password = bcrypt.hashpw(request.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        # Store the new user
+        result = await users_collection.insert_one({
+            "email": request.email,
+            "password": hashed_password
+        })
+
+        user_id = str(result.inserted_id)
+        
+        return {"message": "User registered successfully", "userId": user_id}
+    except Exception as e:
+        logger.error(f"Error registering user: {str(e)}")
+        return {"error": "Failed to register user"}
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    """Login a user."""
+    try:
+        # Check if user exists
+        user = await users_collection.find_one({"email": request.email})
+
+        if not user:
+            return {"error": "User not found"}
+
+        # Check password
+        if not bcrypt.checkpw(request.password.encode('utf-8'), user["password"].encode('utf-8')):
+            return {"error": "Invalid password"}
+        
+        return {"message": "Login successful", "userId": str(user["_id"])}
+    except Exception as e:
+        logger.error(f"Error logging in: {str(e)}")
+        return {"error": "Failed to login"}
+        
 
 if __name__ == "__main__":
     import uvicorn

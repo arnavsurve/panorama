@@ -1,12 +1,44 @@
 import './App.css';
 import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { HiArrowCircleUp } from 'react-icons/hi';
 import ArticleGrid from './components/ArticleGrid';
-import SourceDetail from './components/SourceDetail.jsx';
+import LoginPage from './components/LoginPage.jsx';
+import RegistrationPage from './components/RegistrationPage.jsx';
 import { getRandomLoadingMessage } from './utils';
 
+// New Landing Page Component
+function LandingPage() {
+  const navigate = useNavigate();
+  
+  return (
+    <div className="min-h-screen bg-neutral-900 text-white font-mono flex flex-col items-center px-4">
+      <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col items-center justify-center">
+        <h1 className="text-6xl text-center mb-6">📰 panorama</h1>
+        <p className="text-xl text-center text-neutral-300 mb-10 max-w-lg">
+          Get the whole picture with news from all perspectives.
+        </p>
+        
+        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+          <button 
+            onClick={() => navigate('/register')} 
+            className="flex-1 p-4 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 text-lg"
+          >
+            Get Started
+          </button>
+          <button 
+            onClick={() => navigate('/login')} 
+            className="flex-1 p-4 bg-transparent border border-neutral-700 text-white rounded-lg transition-colors hover:bg-neutral-800 text-lg"
+          >
+            Log In
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-function App() {
+function MainApp() {
   const [hasSearched, setHasSearched] = useState(false);
   const [query, setQuery] = useState('');
   const [lastQuery, setLastQuery] = useState('');
@@ -17,11 +49,30 @@ function App() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [apiKey, setApiKey] = useState(localStorage.getItem('perplexityApiKey') || '');
   const [selectedSource, setSelectedSource] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  const navigate = useNavigate();
 
   // API URLs
   const API_BASE_URL = 'http://localhost:8000';
   const QUERY_URL = `${API_BASE_URL}/query`;
   const SOURCE_URL = `${API_BASE_URL}/source`;
+
+  // Check if user is logged in
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('userId');
+    setIsLoggedIn(false);
+    navigate('/');
+    window.location.reload();
+  };
 
   useEffect(() => {
     let interval;
@@ -147,7 +198,35 @@ function App() {
       <div className={`flex flex-col items-center transition-all duration-700 ease-in-out ${hasSearched ? '' : 'flex-1 justify-center'}`}>
         {/* Title and last search */}
         <div className={`transition-all duration-700 ease-in-out w-full ${hasSearched ? 'pt-10' : ''}`}>
-          <h1 className="text-4xl text-center mb-6">📰 panorama</h1>
+          <div className="flex justify-between items-center">
+            <div></div> {/* Empty div for spacing */}
+            <h1 className="text-4xl text-center mb-6">📰 panorama</h1>
+            <div className="flex space-x-2">
+              {isLoggedIn ? (
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1 text-sm bg-transparent border border-neutral-700 rounded-lg hover:bg-neutral-800 transition-colors"
+                >
+                  Log out
+                </button>
+              ) : (
+                <>
+                  <Link 
+                    to="/login" 
+                    className="px-3 py-1 text-sm bg-transparent border border-neutral-700 rounded-lg hover:bg-neutral-800 transition-colors"
+                  >
+                    Login
+                  </Link>
+                  <Link 
+                    to="/register" 
+                    className="px-3 py-1 text-sm bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Register
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
           {hasSearched && (
             <p className="text-center text-neutral-400 text-md transition-opacity duration-500 animate-fade-in">
               <span className="text-gray-500">{'>'} {lastQuery}</span>
@@ -270,6 +349,35 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+// Main App with authentication routing
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // Check if user is logged in on mount
+  useEffect(() => {
+    const userId = localStorage.getItem('userId');
+    if (userId) {
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  // Function to update login state
+  const handleLogin = (userId) => {
+    localStorage.setItem('userId', userId);
+    setIsLoggedIn(true);
+  };
+  
+  return (
+    <Routes>
+      <Route path="/" element={isLoggedIn ? <MainApp /> : <LandingPage />} />
+      <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+      <Route path="/register" element={<RegistrationPage onLogin={handleLogin} />} />
+      <Route path="/search" element={<MainApp />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 
