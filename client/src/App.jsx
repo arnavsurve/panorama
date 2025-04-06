@@ -111,6 +111,8 @@ function MainApp() {
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('Invalid API key. Please check your Perplexity API key.');
+        } else if (response.status === 410 || response.status === 403) {
+          throw new Error(`Content not available (Error: ${response.status}).`);
         } else {
           throw new Error(`API Error: ${response.status}`);
         }
