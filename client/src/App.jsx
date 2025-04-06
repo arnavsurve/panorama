@@ -22,7 +22,7 @@ function LandingPage() {
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
           <button
             onClick={() => navigate('/register')}
-            className="flex-1 p-4 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 text-lg cursor-pointer"
+            className="flex-1 p-4 bg-gray-600 text-white rounded-lg transition-colors hover:bg-gray-700 text-lg cursor-pointer"
           >
             get started
           </button>
@@ -90,7 +90,7 @@ function MainApp() {
       const userId = localStorage.getItem('userId');
       const payload = {
         query: searchQuery,
-        limit: 15,
+        limit: 21,
         user_id: userId,  // include the user id if available
       };
 
