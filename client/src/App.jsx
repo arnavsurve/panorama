@@ -22,7 +22,7 @@ function App() {
   const [followUpLoading, setFollowUpLoading] = useState(false);
   
   // API URLs
-  const API_BASE_URL = 'http://localhost:8001';
+  const API_BASE_URL = 'http://localhost:8000';
   const QUERY_URL = `${API_BASE_URL}/query`;
   const SOURCE_URL = `${API_BASE_URL}/source`;
   const FOLLOWUP_URL = `${API_BASE_URL}/followup`;
