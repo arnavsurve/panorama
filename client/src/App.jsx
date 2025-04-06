@@ -17,15 +17,11 @@ function App() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [apiKey, setApiKey] = useState(localStorage.getItem('perplexityApiKey') || '');
   const [selectedSource, setSelectedSource] = useState(null);
-  const [followUpQuestion, setFollowUpQuestion] = useState('');
-  const [followUpAnswer, setFollowUpAnswer] = useState(null);
-  const [followUpLoading, setFollowUpLoading] = useState(false);
-  
+
   // API URLs
   const API_BASE_URL = 'http://localhost:8000';
   const QUERY_URL = `${API_BASE_URL}/query`;
   const SOURCE_URL = `${API_BASE_URL}/source`;
-  const FOLLOWUP_URL = `${API_BASE_URL}/followup`;
 
   useEffect(() => {
     let interval;
@@ -83,8 +79,6 @@ function App() {
     setLoading(true);
     setShowResults(false);
     setSelectedSource(null);
-    setFollowUpQuestion('');
-    setFollowUpAnswer(null);
 
     try {
       const apiResults = await fetchResults(query);
@@ -122,8 +116,6 @@ function App() {
   const handleSourceSelect = async (sourceId) => {
     try {
       setSelectedSource(null);
-      setFollowUpQuestion('');
-      setFollowUpAnswer(null);
       
       const response = await fetch(`${SOURCE_URL}/${sourceId}`);
       
@@ -139,42 +131,8 @@ function App() {
     }
   };
 
-  const handleFollowUpSubmit = async (e) => {
-    e.preventDefault();
-    if (!followUpQuestion.trim() || !selectedSource) return;
-
-    setFollowUpLoading(true);
-    setFollowUpAnswer(null);
-
-    try {
-      const response = await fetch(`${FOLLOWUP_URL}/${selectedSource._id}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: followUpQuestion
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setFollowUpAnswer(data);
-    } catch (err) {
-      console.error('Follow-up error:', err);
-      setError('Failed to get an answer to your follow-up question.');
-    } finally {
-      setFollowUpLoading(false);
-    }
-  };
-
   const handleBackToResults = () => {
     setSelectedSource(null);
-    setFollowUpQuestion('');
-    setFollowUpAnswer(null);
   };
 
   const placeholderText = "What's happening today?";
@@ -269,11 +227,6 @@ function App() {
               
               <SourceDetail 
                 source={selectedSource} 
-                question={followUpQuestion}
-                setQuestion={setFollowUpQuestion}
-                onSubmitQuestion={handleFollowUpSubmit}
-                loading={followUpLoading}
-                answer={followUpAnswer}
               />
             </div>
           ) : (
