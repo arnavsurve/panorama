@@ -54,7 +54,6 @@ function MainApp() {
 
   // API URLs
   const API_BASE_URL = 'http://localhost:8000';
-  const API_BASE_URL = 'http://localhost:8000';
   const QUERY_URL = `${API_BASE_URL}/query`;
   const SOURCE_URL = `${API_BASE_URL}/source`;
 
