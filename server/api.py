@@ -15,15 +15,21 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 from bs4 import BeautifulSoup
 import hashlib
-import nest_asyncio
-
-# Enable nested asyncio for concurrent scraping
-nest_asyncio.apply()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Try to use nest_asyncio if compatible with the current event loop
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+    logger_nest = logging.getLogger("nest_asyncio")
+    logger_nest.info("Successfully applied nest_asyncio")
+except (ImportError, ValueError) as e:
+    logger_nest = logging.getLogger("nest_asyncio")
+    logger_nest.warning(f"Could not apply nest_asyncio: {str(e)}. Concurrent operations may be limited.")
 
 # Load environment variables
 load_dotenv()
@@ -191,76 +197,79 @@ async def check_mongodb_connection():
         }
 
 async def scrape_website(url: str) -> Dict[str, Any]:
-    """
-    Scrape a website URL and extract text content.
-    """
+    """Scrape a website and extract its content and metadata."""
     try:
         logger.info(f"Scraping website: {url}")
-        
-        # Use httpx for async HTTP requests
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
             response = await client.get(url, headers=headers)
-            response.raise_for_status()
-            html_content = response.text
-        
-        # Parse HTML with BeautifulSoup
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Extract text content
-        for script in soup(["script", "style"]):
-            script.extract()
+            if response.status_code != 200:
+                logger.warning(f"Failed to fetch URL: {url} - Status code: {response.status_code}")
+                return {
+                    "success": False,
+                    "error": f"Failed to fetch URL: {response.status_code}",
+                    "status_code": response.status_code,
+                    "url": url
+                }
             
-        text = soup.get_text(separator=" ", strip=True)
-        
-        # Extract title with enhanced debugging
-        title = ""
-        title_debug = {}
-        
-        # Special case for Fathom Journal
-        if "fathomjournal.org" in url:
-            logger.info(f"Detected Fathom Journal article: {url}")
-            fathom_title_element = soup.select_one('h1.entry-title')
-            if fathom_title_element:
-                fathom_title = fathom_title_element.get_text(strip=True)
-                title_debug["fathom_title"] = fathom_title
-                title = fathom_title
-                title_debug["selected_from"] = "fathom_journal_specific"
-                logger.info(f"Extracted Fathom Journal title: '{title}'")
-        
-        # If no title in Fathom Journal format, try generic patterns
-        if not title:
-            # 1. Check for article/post specific title elements with more specific selectors
-            article_title_candidates = [
-                # Common article title classes
-                soup.find(class_=lambda c: c and any(x in str(c).lower() for x in ['article-title', 'post-title', 'entry-title', 'headline', 'title-text', 'the-title'])),
-                # Look for h2 inside div.the-title (common pattern)
-                soup.select_one('div.the-title h2'),
-                # Look for h1 inside article
-                soup.find('article').find('h1') if soup.find('article') else None,
-                # Look for h1 inside main
-                soup.find('main').find('h1') if soup.find('main') else None,
-                # Look for h1 inside header
-                soup.find('header').find('h1') if soup.find('header') else None,
-                # Look for first h1
-                soup.find('h1'),
-                # Look for first h2
-                soup.find('h2'),
-                # Look for specific div with title class
-                soup.find('div', class_='the-title'),
-            ]
+            html = response.text
+            soup = BeautifulSoup(html, 'html.parser')
             
-            # Try to extract title from each candidate
-            for i, candidate in enumerate(article_title_candidates):
-                if candidate and candidate.get_text(strip=True):
-                    candidate_text = candidate.get_text(strip=True)
-                    title_debug[f"candidate_{i}"] = candidate_text
-                    if not title and len(candidate_text) > 5:
-                        title = candidate_text
-                        title_debug["selected_from"] = f"candidate_{i}"
+            # Extract text content
+            # Remove script and style elements
+            for script in soup(["script", "style"]):
+                script.extract()
+            
+            # Get text
+            text = soup.get_text(separator=' ', strip=True)
+            
+            # Extract title using multiple sources in order of preference
+            title = None
+            title_debug = {}
+            
+            # Check for domain-specific patterns first
+            domain = urlparse(url).netloc.lower()
+            
+            # Fathom Journal specific pattern (based on screenshots)
+            if "fathomjournal.org" in domain:
+                fathom_title_element = soup.select_one('div.the-title h2')
+                if fathom_title_element and fathom_title_element.get_text(strip=True):
+                    title = fathom_title_element.get_text(strip=True)
+                    title_debug["selected_from"] = "fathom_journal_specific"
+                    title_debug["fathom_title"] = title
+            
+            # If no domain-specific match, try generic patterns
+            if not title:
+                # 1. Check for article/post specific title elements with more specific selectors
+                article_title_candidates = [
+                    # Common article title classes
+                    soup.find(class_=lambda c: c and any(x in str(c).lower() for x in ['article-title', 'post-title', 'entry-title', 'headline', 'title-text', 'the-title'])),
+                    # Look for h2 inside div.the-title (common pattern)
+                    soup.select_one('div.the-title h2'),
+                    # Look for h1 inside article
+                    soup.find('article').find('h1') if soup.find('article') else None,
+                    # Look for h1 inside main
+                    soup.find('main').find('h1') if soup.find('main') else None,
+                    # Look for h1 inside header
+                    soup.find('header').find('h1') if soup.find('header') else None,
+                    # Look for first h1
+                    soup.find('h1'),
+                    # Look for first h2
+                    soup.find('h2'),
+                    # Look for specific div with title class
+                    soup.find('div', class_='the-title'),
+                ]
+                
+                # Try to extract title from each candidate
+                for i, candidate in enumerate(article_title_candidates):
+                    if candidate and candidate.get_text(strip=True):
+                        candidate_text = candidate.get_text(strip=True)
+                        title_debug[f"candidate_{i}"] = candidate_text
+                        if not title and len(candidate_text) > 5:
+                            title = candidate_text
+                            title_debug["selected_from"] = f"candidate_{i}"
             
             # 2. Check Open Graph metadata
             og_title_tag = soup.find("meta", attrs={"property": "og:title"})
@@ -405,7 +414,10 @@ async def scrape_website(url: str) -> Dict[str, Any]:
         logger.error(f"Error scraping website {url}: {str(e)}")
         return {
             "success": False,
-            "error": str(e)
+            "error": str(e),
+            "status_code": 500,  # Internal error as default
+            "url": url,
+            "error_type": type(e).__name__
         }
 
 async def get_articles_from_perplexity(query: str, political_leaning: str, api_key: str) -> List[Dict[str, Any]]:
@@ -565,6 +577,9 @@ async def query(request: NewsRequest):
     """
     Fetch news articles from across the political spectrum based on the query.
     """
+    logger.info(f"Received query request: {request.query}")
+    logger.info(f"Request details: limit={request.limit}, api_key_provided={'Yes' if request.api_key else 'No'}")
+    
     try:
         # Use API key from request if provided, otherwise use environment variable
         api_key = request.api_key or PERPLEXITY_API_KEY
@@ -579,15 +594,6 @@ async def query(request: NewsRequest):
         # Use cached results if available and less than 1 hour old
         if cached_query and (datetime.now() - datetime.fromisoformat(cached_query["timestamp"])).total_seconds() < 3600:
             logger.info(f"Using cached results for query: {request.query}")
-            
-            # Log the titles from cached results for debugging
-            if cached_query.get("source_ids"):
-                logger.info(f"Cached article titles:")
-                from bson.objectid import ObjectId
-                for i, source_id in enumerate(cached_query["source_ids"][:3]):
-                    source = await sources_collection.find_one({"_id": ObjectId(source_id)})
-                    if source:
-                        logger.info(f"  {i+1}. Title: '{source.get('title', 'No title')}' | URL: {source.get('url', 'No URL')}")
             
             # Fetch the stored sources
             source_ids = cached_query.get("source_ids", [])
@@ -637,12 +643,15 @@ async def query(request: NewsRequest):
                 "max_score": max_score
             }
             
-            return NewsResponse(
+            response = NewsResponse(
                 query=request.query,
                 sources=sources,
                 statistics=stats,
                 timeline_positioning=timeline_positioning
             )
+            
+            logger.info(f"Query response generated successfully with {len(sources)} sources")
+            return response
         
         # If no cached results, proceed with API calls and scraping
         logger.info(f"Fetching new results for query: {request.query}")
@@ -720,6 +729,7 @@ async def query(request: NewsRequest):
         # Combine scraped data with source info
         enriched_sources = []
         source_ids = []
+        failed_sources = []  # Track sources that failed due to HTTP errors
         
         for i, (source, scrape_result) in enumerate(zip(balanced_sources, scrape_results)):
             if scrape_result["success"]:
@@ -758,8 +768,32 @@ async def query(request: NewsRequest):
                     cleaned_source["_id"] = "temp_" + hashlib.md5(source["url"].encode()).hexdigest()
                     enriched_sources.append(NewsSource(**cleaned_source))
             else:
-                # If scraping failed, use original source with minimal data
-                logger.warning(f"Scraping failed for {source['url']}: {scrape_result.get('error', 'Unknown error')}")
+                # If scraping failed, check for specific HTTP error codes
+                error_msg = scrape_result.get('error', 'Unknown error')
+                status_code = scrape_result.get('status_code', 0)
+                
+                logger.warning(f"Scraping failed for {source['url']}: {error_msg} (Status code: {status_code})")
+                
+                # For 404 and 403 errors, we'll completely skip this source and not include it in the response
+                if status_code in [404, 403]:
+                    logger.info(f"Dropping source with {status_code} error: {source['url']}")
+                    # Track failed sources by political leaning for potential replacement
+                    failed_sources.append({
+                        "index": i,
+                        "political_leaning": source["political_leaning"],
+                        "status_code": status_code
+                    })
+                    continue  # Skip this source entirely
+                
+                # Track other error types for potential replacement
+                if status_code in [429, 500, 502, 503, 504]:
+                    failed_sources.append({
+                        "index": i,
+                        "political_leaning": source["political_leaning"],
+                        "status_code": status_code
+                    })
+                
+                # Create fallback source with error information for non-404 errors
                 fallback_source = {
                     "title": source["title"],
                     "url": source["url"],
@@ -770,7 +804,11 @@ async def query(request: NewsRequest):
                     "domain": source.get("domain"),
                     "favicon_url": source.get("favicon_url"),
                     "text": None,
-                    "metadata": {"error": scrape_result.get("error", "Unknown error during scraping")}
+                    "metadata": {
+                        "error": error_msg,
+                        "status_code": status_code,
+                        "error_type": scrape_result.get("error_type", "ScrapingError")
+                    }
                 }
                 
                 # Clean up formatting
@@ -790,6 +828,69 @@ async def query(request: NewsRequest):
                     # Still include the source in response even if MongoDB storage fails
                     cleaned_source["_id"] = "temp_" + hashlib.md5(source["url"].encode()).hexdigest()
                     enriched_sources.append(NewsSource(**cleaned_source))
+        
+        # If we have failed sources and we have extra sources available, try to replace them
+        if failed_sources and len(all_articles) > len(balanced_sources):
+            logger.info(f"Attempting to replace {len(failed_sources)} failed sources")
+            
+            # Group remaining articles by political leaning
+            remaining_articles = {}
+            for article in all_articles:
+                if article["url"] not in [source["url"] for source in balanced_sources]:
+                    leaning = article["political_leaning"]
+                    if leaning not in remaining_articles:
+                        remaining_articles[leaning] = []
+                    remaining_articles[leaning].append(article)
+            
+            # Try to replace each failed source with another from the same political leaning
+            for failed in failed_sources:
+                leaning = failed["political_leaning"]
+                if leaning in remaining_articles and remaining_articles[leaning]:
+                    replacement = remaining_articles[leaning].pop(0)
+                    logger.info(f"Replacing failed source ({failed['status_code']}) with alternative from same '{leaning}' leaning")
+                    
+                    # Scrape the replacement source
+                    try:
+                        replacement_result = await scrape_website(replacement["url"])
+                        if replacement_result["success"]:
+                            # Create enriched source from replacement
+                            replacement_enriched = {
+                                "title": replacement_result["title"] or replacement["title"],
+                                "url": replacement["url"],
+                                "source_name": replacement["source_name"],
+                                "political_leaning": replacement["political_leaning"],
+                                "political_score": replacement["political_score"],
+                                "snippet": replacement["snippet"],
+                                "text": replacement_result["text"],
+                                "published_date": replacement_result.get("published_date"),
+                                "domain": replacement_result.get("domain") or replacement.get("domain"),
+                                "favicon_url": replacement_result.get("favicon_url") or replacement.get("favicon_url"),
+                                "og_image": replacement_result.get("og_image"),
+                                "metadata": replacement_result.get("metadata", {})
+                            }
+                            
+                            # Clean up formatting
+                            cleaned_replacement = clean_source_formatting(replacement_enriched)
+                            
+                            try:
+                                # Store in MongoDB
+                                result = await sources_collection.insert_one(cleaned_replacement)
+                                source_id = str(result.inserted_id)
+                                source_ids.append(source_id)
+                                
+                                # Convert MongoDB _id to string for response
+                                cleaned_replacement["_id"] = source_id
+                                
+                                # Replace the failed source with this one
+                                enriched_sources[failed["index"]] = NewsSource(**cleaned_replacement)
+                                logger.info(f"Successfully replaced failed source with ID: {source_id}")
+                            except Exception as e:
+                                logger.error(f"Error storing replacement source in MongoDB: {str(e)}")
+                                # Still include the source in response even if MongoDB storage fails
+                                cleaned_replacement["_id"] = "temp_" + hashlib.md5(replacement["url"].encode()).hexdigest()
+                                enriched_sources[failed["index"]] = NewsSource(**cleaned_replacement)
+                    except Exception as e:
+                        logger.error(f"Error scraping replacement source: {str(e)}")
         
         # Store the query and results in cache
         try:
@@ -827,23 +928,18 @@ async def query(request: NewsRequest):
         
         logger.info(f"Returning {len(enriched_sources)} sources with stats: {stats}")
         
-        # Log the titles from the results for debugging
-        logger.info(f"Article titles:")
-        for i, source in enumerate(enriched_sources[:3]):
-            logger.info(f"  {i+1}. Title: '{source.get('title', 'No title')}' | URL: {source.get('url', 'No URL')}")
-        
-        return NewsResponse(
+        response = NewsResponse(
             query=request.query,
             sources=enriched_sources,
             statistics=stats,
             timeline_positioning=timeline_positioning
         )
-            
+        
+        logger.info(f"Query response generated successfully with {len(enriched_sources)} sources")
+        return response
     except Exception as e:
-        logger.error(f"Uncaught exception in query endpoint: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Error processing query: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
 @app.get("/source/{source_id}")
 async def get_source(source_id: str):
