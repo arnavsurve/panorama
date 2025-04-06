@@ -74,6 +74,8 @@ try:
     sources_collection = db.sources  # Collection to store news responses
     queries_collection = db.queries  # Collection to store queries
     users_collection = db.users  # Collection to store users
+    users_collection = db.users
+    search_history_collection = db.searchHistory
     logger.info(f"Connected to MongoDB database: {db.name}")
 except Exception as e:
     logger.error(f"Failed to connect to MongoDB: {str(e)}")
@@ -837,17 +839,21 @@ async def query(request: NewsRequest):
         if request.user_id:
             try:
                 from bson import ObjectId
+                # Build the search history entry with the desired structure:
+                search_history_entry = {
+                    "query": request.query,
+                    "sources": [source.dict() for source in enriched_sources],  # Convert enriched_sources (Pydantic models) to dicts
+                    "statistics": stats,
+                    "timeline_positioning": timeline_positioning
+                }
                 await users_collection.update_one(
                     {"_id": ObjectId(request.user_id)},
-                    {"$push": {"searchHistory": {
-                        "query": request.query,
-                        "query_hash": query_hash,
-                        "timestamp": datetime.now().isoformat()
-                    }}}
+                    {"$push": {"searchHistory": search_history_entry}}
                 )
                 logger.info(f"Updated search history for user {request.user_id}")
             except Exception as e:
                 logger.error(f"Failed to update search history for user {request.user_id}: {str(e)}")
+
         # Calculate statistics
         left_count = sum(1 for s in enriched_sources if s.political_leaning == "left")
         center_count = sum(1 for s in enriched_sources if s.political_leaning == "center")
