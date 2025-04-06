@@ -110,7 +110,9 @@ const ArticleCard = ({ article, onArticleClick }) => {
             alt={title}
             className="w-full h-full object-cover"
             onError={(event) => {
-              event.target.style.display = 'none';
+              if (event.target.naturalWidth === 0) {
+                event.target.style.display = 'none';
+              }
             }}
           />
         </div>
