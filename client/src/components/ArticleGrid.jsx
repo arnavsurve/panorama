@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaRegBookmark, FaBookmark } from 'react-icons/fa';
+import { BsBookmark, BsBookmarkFill } from 'react-icons/bs';
 import FollowUpQuestion from './FollowUpQuestion';
 
 const ArticleCard = ({ article, onArticleClick }) => {
@@ -99,9 +99,9 @@ const ArticleCard = ({ article, onArticleClick }) => {
       {/* Bookmark button positioned at the top right */}
       <button 
         onClick={handleBookmark} 
-        className="absolute top-2 right-2 z-10 text-amber-400 hover:text-amber-500 bg-neutral-900 bg-opacity-70 p-1.5 rounded-full"
+        className="absolute top-2 right-2 z-10 text-white hover:text-gray-300 bg-neutral-900 bg-opacity-70 p-1.5 rounded-full transition-colors duration-200 cursor-pointer"
       >
-        {isBookmarked ? <FaBookmark /> : <FaRegBookmark />}
+        {isBookmarked ? <BsBookmarkFill /> : <BsBookmark />}
       </button>
 
       {og_image && !hasError && (

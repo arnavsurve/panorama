@@ -148,6 +148,12 @@ class BookmarkRequest(BaseModel):
     user_id: str
     news_source: NewsSource
 
+class ThemePreferenceRequest(BaseModel):
+    theme: str  # 'light' or 'dark'
+
+class HistoryResponse(BaseModel):
+    history: List[Dict[str, Any]]
+
 # Helper function to clean up formatting in titles, source names, and snippets
 def clean_source_formatting(source_data: Dict[str, Any]) -> Dict[str, Any]:
     """Clean up formatting issues in source data."""
@@ -1081,11 +1087,25 @@ async def query(request: NewsRequest):
                         
                         # Create search entry with serializable data
                         search_entry = {
+                            "_id": hashlib.md5(f"{request.query}-{datetime.now().isoformat()}".encode()).hexdigest(),
                             "query": request.query,
                             "timestamp": datetime.now().isoformat(),
                             "sources": serializable_sources,
-                            "statistics": stats,
-                            "timeline_positioning": timeline_positioning
+                            "statistics": {
+                                "total": stats["total"],
+                                "left_count": stats["left_count"], 
+                                "center_count": stats["center_count"],
+                                "right_count": stats["right_count"]
+                            },
+                            "timeline_positioning": timeline_positioning,
+                            "resultCount": len(serializable_sources),
+                            # Add fields with names matching frontend expectations
+                            "stats": {
+                                "total": stats["total"],
+                                "leftCount": stats["left_count"],
+                                "centerCount": stats["center_count"],
+                                "rightCount": stats["right_count"]
+                            }
                         }
                         
                         # Append the new search entry
@@ -1327,7 +1347,9 @@ async def register(request: RegisterRequest):
         # Store the new user
         result = await users_collection.insert_one({
             "email": request.email,
-            "password": hashed_password
+            "password": hashed_password,
+            "theme": "light",  # Default theme preference
+            "searchHistory": []  # Initialize empty search history
         })
 
         user_id = str(result.inserted_id)
@@ -1356,6 +1378,192 @@ async def login(request: LoginRequest):
         logger.error(f"Error logging in: {str(e)}")
         return {"error": "Failed to login"}
 
+@app.get("/user/{user_id}/history")
+async def get_user_history(user_id: str):
+    """Retrieve a user's search history."""
+    try:
+        # Validate the user ID format
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+            
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Get search history from user document
+        search_history = user.get("searchHistory", [])
+        
+        # Format the history in a simple, consistent structure
+        formatted_history = []
+        for i, item in enumerate(search_history):
+            # Use existing ID or generate one
+            item_id = item.get("_id", hashlib.md5(f"{item.get('query', '')}-{item.get('timestamp', str(i))}".encode()).hexdigest())
+            
+            # Create a simplified history item with only essential fields
+            formatted_item = {
+                "id": item_id,  # Using 'id' instead of '_id' for frontend compatibility
+                "query": item.get("query", "Unknown search"),
+                "timestamp": item.get("timestamp", datetime.now().isoformat()),
+                "resultCount": len(item.get("sources", [])),
+                "stats": {
+                    "total": item.get("statistics", {}).get("total", 0),
+                    "leftCount": item.get("statistics", {}).get("left_count", 0),
+                    "centerCount": item.get("statistics", {}).get("center_count", 0),
+                    "rightCount": item.get("statistics", {}).get("right_count", 0)
+                }
+            }
+            formatted_history.append(formatted_item)
+        
+        # Sort by timestamp, most recent first
+        formatted_history.sort(key=lambda x: x["timestamp"], reverse=True)
+        
+        # Return the history array directly
+        return formatted_history
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error retrieving user history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve history: {str(e)}")
+
+@app.delete("/user/{user_id}/history")
+async def delete_all_user_history(user_id: str):
+    """Delete all search history for a user."""
+    try:
+        # Validate the user ID format
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+            
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Update user document to clear search history
+        result = await users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"searchHistory": []}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to delete history")
+            
+        return {"success": True}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error deleting user history: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete history: {str(e)}")
+
+@app.delete("/user/{user_id}/history/{history_id}")
+async def delete_specific_history(user_id: str, history_id: str):
+    """Delete a specific history item for a user."""
+    try:
+        # Validate the user ID format
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+            
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Get existing search history
+        search_history = user.get("searchHistory", [])
+        
+        # Find the specific history item by ID
+        filtered_history = []
+        history_found = False
+        
+        for item in search_history:
+            # Check both _id and id fields for compatibility
+            item_id = item.get("_id")
+            
+            # If item has no ID, generate one
+            if item_id is None:
+                hash_input = f"{item.get('query', '')}-{item.get('timestamp', '')}"
+                item_id = hashlib.md5(hash_input.encode()).hexdigest()
+                item["_id"] = item_id
+                
+            if item_id != history_id:
+                filtered_history.append(item)
+            else:
+                history_found = True
+                
+        if not history_found:
+            raise HTTPException(status_code=404, detail="History item not found")
+            
+        # Update user document with filtered history
+        result = await users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"searchHistory": filtered_history}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to delete history item")
+            
+        return {"success": True}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error deleting history item: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete history item: {str(e)}")
+
+@app.post("/user/{user_id}/theme")
+async def set_user_theme(user_id: str, request: ThemePreferenceRequest):
+    """Set a user's theme preference."""
+    try:
+        # Validate the user ID format
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+            
+        # Validate theme value
+        if request.theme not in ["light", "dark"]:
+            raise HTTPException(status_code=400, detail="Theme must be 'light' or 'dark'")
+            
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Update user's theme preference
+        result = await users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"theme": request.theme}}
+        )
+        
+        if result.modified_count == 0 and not user.get("theme") == request.theme:
+            raise HTTPException(status_code=500, detail="Failed to update theme preference")
+            
+        return {"message": "Theme preference updated successfully", "theme": request.theme}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error setting user theme: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to set theme preference: {str(e)}")
+
+@app.get("/user/{user_id}/theme")
+async def get_user_theme(user_id: str):
+    """Get a user's theme preference."""
+    try:
+        # Validate the user ID format
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+            
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Return the user's theme preference or default to 'light'
+        theme = user.get("theme", "light")
+            
+        return {"theme": theme}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error retrieving user theme: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get theme preference: {str(e)}")
 
 @app.post("/bookmark")
 async def add_bookmark(request: BookmarkRequest):
@@ -1492,6 +1700,32 @@ async def multi_article_followup(request: MultiArticleFollowUpRequest):
             "question": request.question,
             "answer": f"Sorry, an error occurred while processing your question: {str(e)}",
         }
+
+@app.get("/user/{user_id}/bookmarks")
+async def get_bookmarks(user_id: str):
+    """Retrieve a user's bookmarks."""
+    try:
+        # Validate the user ID format
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+            
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Return the user's bookmarks
+        bookmarks = user.get("bookmarks", [])
+        return bookmarks
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error retrieving bookmarks: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve bookmarks: {str(e)}")
+
+
+
+
 
 if __name__ == "__main__":
     import uvicorn

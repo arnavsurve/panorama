@@ -6,7 +6,11 @@ import ArticleGrid from './components/ArticleGrid';
 import LoginPage from './components/LoginPage.jsx';
 import RegistrationPage from './components/RegistrationPage.jsx';
 import PongLoadingGame from './components/PongLoadingGame';
+import Settings from './components/Settings';
+import HistoryModal from './components/HistoryModal';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { getRandomLoadingMessage } from './utils';
+
 // New Landing Page Component
 function LandingPage() {
   const navigate = useNavigate();
@@ -49,6 +53,8 @@ function MainApp() {
   const [loadingMessage, setLoadingMessage] = useState('');
   const [selectedSource, setSelectedSource] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('userId'));
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const { isDarkMode } = useTheme();
 
   const navigate = useNavigate();
 
@@ -65,12 +71,17 @@ function MainApp() {
     }
   }, []);
 
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem('userId');
-    setIsLoggedIn(false);
-    navigate('/');
-    window.location.reload();
+  // Handle theme changes
+  useEffect(() => {
+    document.documentElement.classList.toggle('light-mode', !isDarkMode);
+  }, [isDarkMode]);
+
+  // Handle history selection
+  const handleHistorySelection = (selectedQuery) => {
+    setQuery(selectedQuery);
+    setHistoryModalOpen(false);
+    // Optional: auto-submit the query
+    // handleSubmit({ preventDefault: () => {} });
   };
 
   useEffect(() => {
@@ -189,9 +200,9 @@ function MainApp() {
   const placeholderText = "What's happening today?";
 
   return (
-    <div className="min-h-screen bg-neutral-900 text-white font-mono flex flex-col transition-all duration-700 ease-in-out px-4">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-black'} font-mono flex flex-col transition-all duration-700 ease-in-out px-4`}>
       <div className="w-full fixed top-0 left-0 bg-opacity-100 flex justify-end items-center p-4 z-50">
-        <button className="bg-transparent border-1 text-base cursor-pointer p-2 hover:text-gray-400 rounded-lg" onClick={handleLogout}>log out</button>
+        <Settings onOpenHistory={() => setHistoryModalOpen(true)} />
       </div>
       {/* Container that manages vertical positioning */}
       <div className={`flex flex-col items-center transition-all duration-700 ease-in-out ${hasSearched ? '' : 'flex-1 justify-center'}`}>
@@ -199,7 +210,7 @@ function MainApp() {
         <div className={`transition-all duration-700 ease-in-out w-full ${hasSearched ? 'pt-10' : ''}`}>
           <div className="flex justify-between items-center">
             <div></div> {/* Empty div for spacing */}
-            <h1 className="text-4xl text-center mb-6">📰 panorama</h1>
+            <h1 className="text-4xl text-center mb-6 cursor-pointer" onClick={() => window.location.href = '/'}>📰 panorama</h1>
             <div className="flex space-x-2">
               {isLoggedIn ? (
                 null
@@ -238,7 +249,7 @@ function MainApp() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   disabled={loading}
-                  className="w-full p-4 pr-12 bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none transition-all duration-300 disabled:opacity-50"
+                  className={`w-full p-4 pr-12 ${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-300'} border rounded-lg focus:outline-none transition-all duration-300 disabled:opacity-50`}
                   placeholder={placeholderText}
                 />
                 <button
@@ -304,7 +315,7 @@ function MainApp() {
 
       {/* Floating search bar that appears after search */}
       {hasSearched && (
-        <div className="fixed bottom-0 left-0 right-0 z-10 search-bar-gradient pt-8 pb-4 px-4 animate-fade-in">
+        <div className={`fixed bottom-0 left-0 right-0 z-10 ${isDarkMode ? 'search-bar-gradient' : 'search-bar-gradient-light'} pt-8 pb-4 px-4 animate-fade-in`}>
           <div className="w-full max-w-xl mx-auto">
             <form onSubmit={handleSubmit} className="w-full">
               <div className="relative flex items-center">
@@ -313,7 +324,7 @@ function MainApp() {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   disabled={loading}
-                  className="w-full p-4 pr-12 bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none transition-all duration-300 disabled:opacity-50"
+                  className={`w-full p-4 pr-12 ${isDarkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-neutral-300'} border rounded-lg focus:outline-none transition-all duration-300 disabled:opacity-50`}
                   placeholder={placeholderText}
                 />
                 <button
@@ -332,6 +343,13 @@ function MainApp() {
           </div>
         </div>
       )}
+
+      {/* History Modal */}
+      <HistoryModal 
+        isOpen={historyModalOpen}
+        onClose={() => setHistoryModalOpen(false)}
+        onQueryClick={handleHistorySelection}
+      />
     </div>
   );
 }
@@ -355,13 +373,15 @@ function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/" element={isLoggedIn ? <MainApp /> : <LandingPage />} />
-      <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
-      <Route path="/register" element={<RegistrationPage onLogin={handleLogin} />} />
-      <Route path="/search" element={<MainApp />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <ThemeProvider>
+      <Routes>
+        <Route path="/" element={isLoggedIn ? <MainApp /> : <LandingPage />} />
+        <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+        <Route path="/register" element={<RegistrationPage onLogin={handleLogin} />} />
+        <Route path="/search" element={<MainApp />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ThemeProvider>
   );
 }
 
