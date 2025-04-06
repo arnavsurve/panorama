@@ -136,6 +136,11 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+        
+class BookmarkRequest(BaseModel):
+    user_id: str
+    news_source: NewsSource
+
 # Helper function to clean up formatting in titles, source names, and snippets
 def clean_source_formatting(source_data: Dict[str, Any]) -> Dict[str, Any]:
     """Clean up formatting issues in source data."""
@@ -1265,7 +1270,22 @@ async def login(request: LoginRequest):
     except Exception as e:
         logger.error(f"Error logging in: {str(e)}")
         return {"error": "Failed to login"}
+
+
+@app.post("/bookmark")
+async def add_bookmark(request: BookmarkRequest):
+    try:
+        news_source_dict = request.news_source.dict()
         
+        # Update the user's bookmarks array using $addToSet to prevent duplicates
+        await users_collection.update_one(
+            {"_id": ObjectId(request.user_id)},
+            {"$addToSet": {"bookmarks": news_source_dict}},
+        )
+        return {"message": "Bookmark added successfully"}
+    except Exception as e:
+        logger.error(f"Error adding bookmark: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error adding bookmark")
 
 if __name__ == "__main__":
     import uvicorn

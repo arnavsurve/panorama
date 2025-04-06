@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { FaRegBookmark, FaBookmark } from 'react-icons/fa';
 
 const ArticleCard = ({ article, onArticleClick }) => {
-  const { _id, title, source_name, political_leaning, political_score, published_date, favicon_url, og_image, url, metadata } = article;
+  const { _id, title, source_name, political_leaning, political_score, published_date, favicon_url, og_image, url, metadata, text } = article;
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   // Check if article has HTTP error
   const hasError = metadata && (metadata.error || metadata.status_code);
@@ -38,11 +40,58 @@ const ArticleCard = ({ article, onArticleClick }) => {
     }
   };
 
+  const handleBookmark = async (e) => {
+    e.stopPropagation(); // Prevent the card click event
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      alert("Please log in to bookmark articles.");
+      return;
+    }
+    
+    try {
+      const response = await fetch('http://localhost:8000/bookmark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          news_source: article
+        })
+      });
+
+      if (!response.ok) {
+        alert("Failed to bookmark the article. Please try again.");
+        return;
+      }
+
+      const data = await response.json();
+      if (data.message) {
+        setIsBookmarked(true);
+        console.log(data.message);
+      } else {
+        alert("Failed to bookmark the article.");
+      }
+    } catch (error) {
+      console.error("Error bookmarking article:", error);
+      alert("An error occurred while bookmarking the article.");
+    }
+  };
+  
+
   return (
     <div
-      className={`bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${hasError ? 'border border-amber-600/30' : ''}`}
+      className={`bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${hasError ? 'border border-amber-600/30' : ''} relative`}
       onClick={() => onArticleClick(_id)}
     >
+      {/* Bookmark button positioned at the top right */}
+      <button 
+        onClick={handleBookmark} 
+        className="absolute top-2 right-2 z-10 text-amber-400 hover:text-amber-500 bg-neutral-900 bg-opacity-70 p-1.5 rounded-full"
+      >
+        {isBookmarked ? <FaBookmark /> : <FaRegBookmark />}
+      </button>
+
       {og_image && !hasError && (
         <div className="h-40 overflow-hidden">
           <img

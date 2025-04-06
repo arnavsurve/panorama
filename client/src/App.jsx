@@ -90,7 +90,6 @@ function MainApp() {
       const userId = localStorage.getItem('userId');
       const payload = {
         query: searchQuery,
-        limit: 15,
         user_id: userId,  // include the user id if available
       };
 
