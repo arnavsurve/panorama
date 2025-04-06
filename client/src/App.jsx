@@ -16,21 +16,21 @@ function LandingPage() {
       <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col items-center justify-center">
         <h1 className="text-6xl text-center mb-6">📰 panorama</h1>
         <p className="text-xl text-center text-neutral-300 mb-10 max-w-lg">
-          Get the whole picture with news from all perspectives.
+          get the whole picture with news from all perspectives.
         </p>
         
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
           <button 
             onClick={() => navigate('/register')} 
-            className="flex-1 p-4 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 text-lg"
+            className="flex-1 p-4 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 text-lg cursor-pointer"
           >
-            Get Started
+            get started
           </button>
           <button 
             onClick={() => navigate('/login')} 
-            className="flex-1 p-4 bg-transparent border border-neutral-700 text-white rounded-lg transition-colors hover:bg-neutral-800 text-lg"
+            className="flex-1 p-4 bg-transparent border border-neutral-700 text-white rounded-lg transition-colors hover:bg-neutral-800 text-lg cursor-pointer"
           >
-            Log In
+            log in
           </button>
         </div>
       </div>
@@ -182,7 +182,7 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-neutral-900 text-white font-mono flex flex-col transition-all duration-700 ease-in-out px-4">
       <div className="w-full fixed top-0 left-0 bg-opacity-100 flex justify-end items-center p-4 shadow-md z-50">
-        <button className="bg-transparent border-1 text-base cursor-pointer p-2 hover:text-blue-500 rounded-lg" onClick={handleLogout}>Logout</button>
+        <button className="bg-transparent border-1 text-base cursor-pointer p-2 hover:text-gray-400 rounded-lg" onClick={handleLogout}>log out</button>
       </div>
       {/* Container that manages vertical positioning */}
       <div className={`flex flex-col items-center transition-all duration-700 ease-in-out ${hasSearched ? '' : 'flex-1 justify-center'}`}>
