@@ -925,8 +925,9 @@ async def query(request: NewsRequest):
         logger.info(f"Article titles:")
         for i, source in enumerate(enriched_sources[:3]):
             logger.info(
-                f"  {i+1}. Title: '{source.get('title', 'No title')}' | URL: {source.get('url', 'No URL')}"
+                f"  {i+1}. Title: '{source.title if source.title else 'No title'}' | URL: {source.url if source.url else 'No URL'}"
             )
+
 
         return NewsResponse(
             query=request.query,
