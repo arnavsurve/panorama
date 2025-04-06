@@ -47,7 +47,6 @@ function MainApp() {
   const [showResults, setShowResults] = useState(false);
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [apiKey, setApiKey] = useState(localStorage.getItem('perplexityApiKey') || '');
   const [selectedSource, setSelectedSource] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   
@@ -92,11 +91,6 @@ function MainApp() {
         query: searchQuery,
         limit: 12,
       };
-      
-      // Add API key if available
-      if (apiKey) {
-        payload.api_key = apiKey;
-      }
       
       const response = await fetch(QUERY_URL, {
         method: 'POST',
@@ -150,11 +144,6 @@ function MainApp() {
         setQuery('');
         setHasSearched(true);
         setShowResults(true);
-        
-        // Save API key to localStorage if provided
-        if (apiKey) {
-          localStorage.setItem('perplexityApiKey', apiKey);
-        }
       }
     } catch (err) {
       console.error('Search error:', err);
@@ -188,12 +177,11 @@ function MainApp() {
 
   const placeholderText = "What's happening today?";
   
-  const handleApiKeyChange = (e) => {
-    setApiKey(e.target.value);
-  };
-
   return (
     <div className="min-h-screen bg-neutral-900 text-white font-mono flex flex-col transition-all duration-700 ease-in-out px-4">
+      <div className="w-full fixed top-0 left-0 bg-opacity-100 flex justify-end items-center p-4 shadow-md z-50">
+        <button className="bg-transparent border-1 text-base cursor-pointer p-2 hover:text-blue-500 rounded-lg" onClick={handleLogout}>Logout</button>
+      </div>
       {/* Container that manages vertical positioning */}
       <div className={`flex flex-col items-center transition-all duration-700 ease-in-out ${hasSearched ? '' : 'flex-1 justify-center'}`}>
         {/* Title and last search */}
@@ -203,12 +191,7 @@ function MainApp() {
             <h1 className="text-4xl text-center mb-6">📰 panorama</h1>
             <div className="flex space-x-2">
               {isLoggedIn ? (
-                <button
-                  onClick={handleLogout}
-                  className="px-3 py-1 text-sm bg-transparent border border-neutral-700 rounded-lg hover:bg-neutral-800 transition-colors"
-                >
-                  Log out
-                </button>
+                null
               ) : (
                 <>
                   <Link 
@@ -258,20 +241,6 @@ function MainApp() {
                     <HiArrowCircleUp className="w-8 h-8 transition-transform hover:scale-110" />
                   )}
                 </button>
-              </div>
-              
-              {/* API Key input */}
-              <div className="relative">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={handleApiKeyChange}
-                  placeholder="Enter your Perplexity API Key (optional)"
-                  className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded-lg focus:outline-none transition-all text-sm"
-                />
-                <div className="text-xs text-neutral-500 mt-1">
-                  Your API key is stored locally and never sent to our servers.
-                </div>
               </div>
             </form>
           </div>

@@ -111,7 +111,7 @@ function LoginPage({ onLogin }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full p-3 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+            className="w-full p-3 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed mt-4 cursor-pointer"
           >
             {loading ? (
               <div className="flex justify-center items-center">
@@ -129,7 +129,7 @@ function LoginPage({ onLogin }) {
               <button
                 type="button"
                 onClick={handleRegisterRedirect}
-                className="text-blue-400 hover:text-blue-300 transition-colors"
+                className="text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
               >
                 Register
               </button>
