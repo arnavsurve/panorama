@@ -1,14 +1,12 @@
 import React from 'react';
 
 const ArticleCard = ({ article, onArticleClick }) => {
-  const { _id, title, source_name, political_leaning, political_score, snippet, published_date, favicon_url, og_image, url } = article;
+  const { _id, title, source_name, political_leaning, political_score, published_date, favicon_url, og_image, url, metadata } = article;
   
-  // Debug log for article title
-  console.log(`ArticleCard rendering: ${url}`, {
-    title: title || 'No title',
-    url,
-    domain: url ? new URL(url).hostname : 'No URL'
-  });
+  // Check if article has HTTP error
+  const hasError = metadata && (metadata.error || metadata.status_code);
+  const statusCode = metadata?.status_code;
+  const errorMessage = metadata?.error;
   
   // Function to get color based on political leaning
   const getLeaningColor = (leaning) => {
@@ -24,7 +22,7 @@ const ArticleCard = ({ article, onArticleClick }) => {
   
   // Format date for display
   const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
+    if (!dateString) return "";  
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString();
@@ -43,10 +41,10 @@ const ArticleCard = ({ article, onArticleClick }) => {
   
   return (
     <div 
-      className="bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer"
+      className={`bg-neutral-800 rounded-lg overflow-hidden transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer ${hasError ? 'border border-amber-600/30' : ''}`}
       onClick={() => onArticleClick(_id)}
     >
-      {og_image && (
+      {og_image && !hasError && (
         <div className="h-40 overflow-hidden">
           <img 
             src={og_image} 
@@ -58,7 +56,18 @@ const ArticleCard = ({ article, onArticleClick }) => {
           />
         </div>
       )}
-      <div className={`p-4 ${og_image ? '' : 'py-6'}`}>
+      
+      {/* Error indicator for articles with HTTP errors */}
+      {hasError && (
+        <div className="bg-amber-900/30 px-4 py-2 text-amber-400 text-xs flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          {statusCode ? `Error ${statusCode}` : 'Loading Error'}
+        </div>
+      )}
+      
+      <div className={`p-4 ${og_image && !hasError ? '' : 'py-6'}`}>
         <div className="flex items-center mb-2">
           {favicon_url && (
             <img 
@@ -84,9 +93,19 @@ const ArticleCard = ({ article, onArticleClick }) => {
         >
           {title}
         </h3>
-        <p className="text-neutral-300 text-sm mb-3 line-clamp-3">{snippet}</p>
+        
+        {hasError && (
+          <p className="text-amber-400/80 text-sm mb-3">
+            {errorMessage || "This article couldn't be loaded properly. Click to see available content."}
+          </p>
+        )}
+        
         <div className="flex justify-between items-center text-xs text-neutral-400">
-          <span>{formatDate(published_date)}</span>
+          {published_date && formatDate(published_date) ? (
+            <span>{formatDate(published_date)}</span>
+          ) : (
+            <span></span>
+          )}
           {political_score && (
             <div className="flex items-center gap-1">
               <div 
@@ -105,30 +124,49 @@ const ArticleCard = ({ article, onArticleClick }) => {
 const ArticleGrid = ({ results, isVisible, onArticleClick }) => {
   if (!results || !results.sources || !isVisible) return null;
   
-  const { sources, statistics } = results;
+  const { sources } = results;
+  
+  // Filter out any articles with 404 or 403 errors
+  const filteredSources = sources.filter(article => {
+    // Skip articles with 404 or 403 errors in metadata
+    return !(article.metadata && (article.metadata.status_code === 404 || article.metadata.status_code === 403));
+  });
   
   // Group articles by political leaning
-  const leftArticles = sources.filter(article => article.political_leaning === "left");
-  const centerArticles = sources.filter(article => article.political_leaning === "center");
-  const rightArticles = sources.filter(article => article.political_leaning === "right");
+  const leftArticles = filteredSources.filter(article => article.political_leaning === "left")
+    .sort((a, b) => (a.political_score || 0) - (b.political_score || 0));
+  
+  const centerArticles = filteredSources.filter(article => article.political_leaning === "center")
+    .sort((a, b) => (a.political_score || 0) - (b.political_score || 0));
+  
+  const rightArticles = filteredSources.filter(article => article.political_leaning === "right")
+    .sort((a, b) => (a.political_score || 0) - (b.political_score || 0));
+  
+  // Recalculate statistics after filtering
+  const filteredStatistics = {
+    total: filteredSources.length,
+    left_count: leftArticles.length,
+    center_count: centerArticles.length,
+    right_count: rightArticles.length
+  };
   
   return (
     <div className={`w-full max-w-6xl mx-auto transition-opacity duration-700 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
       <div className="mb-8">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-          <h2 className="text-lg font-semibold">Results ({statistics.total})</h2>
+          <h2 className="text-lg font-semibold">Results ({filteredStatistics.total})</h2>
           <div className="flex gap-6 text-sm">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span>Left ({statistics.left_count})</span>
+              <span>Left ({filteredStatistics.left_count})</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-              <span>Center ({statistics.center_count})</span>
+              <span>Center ({filteredStatistics.center_count})</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <span>Right ({statistics.right_count})</span>
+              <span>Right ({filteredStatistics.right_count})</span>
             </div>
           </div>
         </div>

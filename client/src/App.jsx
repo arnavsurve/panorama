@@ -5,8 +5,8 @@ import { HiArrowCircleUp } from 'react-icons/hi';
 import ArticleGrid from './components/ArticleGrid';
 import LoginPage from './components/LoginPage.jsx';
 import RegistrationPage from './components/RegistrationPage.jsx';
+import PongLoadingGame from './components/PongLoadingGame';
 import { getRandomLoadingMessage } from './utils';
-
 // New Landing Page Component
 function LandingPage() {
   const navigate = useNavigate();
@@ -54,6 +54,7 @@ function MainApp() {
 
   // API URLs
   const API_BASE_URL = 'http://localhost:8000';
+  const API_BASE_URL = 'http://localhost:8000';
   const QUERY_URL = `${API_BASE_URL}/query`;
   const SOURCE_URL = `${API_BASE_URL}/source`;
 
@@ -92,6 +93,9 @@ function MainApp() {
         limit: 12,
       };
       
+      console.log('Sending request to:', QUERY_URL);
+      console.log('Request payload:', payload);
+      
       const response = await fetch(QUERY_URL, {
         method: 'POST',
         headers: {
@@ -99,6 +103,9 @@ function MainApp() {
         },
         body: JSON.stringify(payload),
       });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
       
       if (!response.ok) {
         if (response.status === 401) {
@@ -109,6 +116,7 @@ function MainApp() {
       }
       
       const data = await response.json();
+      console.log('Response data:', data);
       return data;
     } catch (err) {
       console.error('Error fetching results:', err);
@@ -128,17 +136,6 @@ function MainApp() {
     try {
       const apiResults = await fetchResults(query);
       if (apiResults) {
-        // Log the full response to console for debugging
-        console.log('API Response:', JSON.stringify(apiResults, null, 2));
-        // Log the first few articles to see title formatting
-        if (apiResults.sources && apiResults.sources.length > 0) {
-          console.log('First 3 article titles:', apiResults.sources.slice(0, 3).map(source => ({
-            title: source.title,
-            url: source.url,
-            domain: source.domain
-          })));
-        }
-        
         setLastQuery(query);
         setResults(apiResults);
         setQuery('');
@@ -246,10 +243,14 @@ function MainApp() {
           </div>
         )}
 
-      {/* Loading message under last search text */}
+      {/* Pong Loading Game */}
       {loading && (
-        <div className="w-full max-w-xl mx-auto mt-4 text-center text-neutral-400 animate-fade-in-out">
-          {loadingMessage}
+        <div className="w-full max-w-xl mx-auto mt-32 mb-16"> {/* Increased top and bottom margins further */}
+          {/* Centered loading message above the game */}
+          <div className="text-center mb-6 text-neutral-400 animate-fade-in-out">
+            {loadingMessage}
+          </div>
+          <PongLoadingGame loadingMessage={loadingMessage} />
         </div>
       )}
       
