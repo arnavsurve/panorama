@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FaSearch, FaEye, FaEyeSlash, FaSlidersH } from 'react-icons/fa';
+import ReactMarkdown from 'react-markdown';
 
 const FollowUpQuestion = ({ queryId, userId, onAnswer, isLoading, setIsLoading, articleData }) => {
   const [question, setQuestion] = useState('');
@@ -99,7 +100,11 @@ const FollowUpQuestion = ({ queryId, userId, onAnswer, isLoading, setIsLoading, 
           {showAnswer && (
             <>  
               <h4 className="font-medium text-[#4A5565] mb-2">Answer:</h4>
-              <p className="text-neutral-200 mb-3 whitespace-pre-line">{answer.answer}</p>
+              <div className="text-neutral-200 mb-3 markdown-content">
+                <ReactMarkdown>
+                  {answer.answer}
+                </ReactMarkdown>
+              </div>
               
               {answer.articles && answer.articles.length > 0 && (
                 <div className="mt-4">
