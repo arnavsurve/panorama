@@ -99,7 +99,7 @@ except Exception as e:
 # Define request and response models
 class NewsRequest(BaseModel):
     query: str
-    limit: Optional[int] = 12  # Default to 12 articles
+    limit: Optional[int] = 15  # Default to 15 articles
     api_key: Optional[str] = None
     user_id: Optional[str] = None
 
@@ -511,7 +511,7 @@ async def get_articles_from_perplexity(
                         "messages": [
                             {
                                 "role": "system",
-                                "content": "You are a news collection assistant. Find recent news articles on the given topic. Include only factual articles from established news outlets. For each article, provide: 1) The exact article title, 2) The source name, 3) The complete article URL, and 4) A brief snippet or summary. Format each article as a separate bullet point or numbered item. Provide at least 5 articles if available.",
+                                "content": "You are a news collection assistant. Find recent news articles on the given topic. Include only factual articles from established news outlets. For each article, provide: 1) The exact article title, 2) The source name, 3) The complete article URL, and 4) A brief snippet or summary. Format each article as a separate bullet point or numbered item. Provide at least 10 articles if available. Focus on diversity of sources within the specified political leaning category. Do not repeat articles from the same source. Prioritize articles published within the last year, and do not include sources older than 5 years unless absolutely necessary. Focus on the most recent, relevant sources available.",
                             },
                             {"role": "user", "content": leaning_query},
                         ],
@@ -720,6 +720,69 @@ async def query(request: NewsRequest):
             f"Article distribution - Left: {len(left_sources)}, Center: {len(center_sources)}, Right: {len(right_sources)}"
         )
 
+        # Define minimum articles per category to ensure balanced distribution
+        min_per_category = max(1, request.limit // 6)  # At least 1/6 of requested limit per category
+        
+        # Check if any category has fewer articles than the minimum threshold
+        needs_requery = False
+        requery_leanings = []
+        
+        if len(left_sources) < min_per_category:
+            needs_requery = True
+            requery_leanings.append("left")
+            logger.info(f"Not enough left-leaning sources ({len(left_sources)}), will re-query")
+            
+        if len(center_sources) < min_per_category:
+            needs_requery = True
+            requery_leanings.append("center")
+            logger.info(f"Not enough center sources ({len(center_sources)}), will re-query")
+            
+        if len(right_sources) < min_per_category:
+            needs_requery = True
+            requery_leanings.append("right")
+            logger.info(f"Not enough right-leaning sources ({len(right_sources)}), will re-query")
+        
+        # Only perform additional queries if necessary
+        if needs_requery:
+            logger.info(f"Re-querying for additional sources in categories: {requery_leanings}")
+            
+            # Use a more specific query to try to get more results
+            requery_tasks = []
+            for leaning in requery_leanings:
+                # Create a more targeted query for the specific leaning
+                targeted_query = f"{request.query} from established {leaning}-leaning news sources only"
+                requery_tasks.append(get_articles_from_perplexity(targeted_query, leaning, api_key))
+            
+            if requery_tasks:
+                requery_results = await asyncio.gather(*requery_tasks)
+                
+                # Process and add new articles
+                for i, leaning_articles in enumerate(requery_results):
+                    leaning = requery_leanings[i]
+                    for article in leaning_articles:
+                        article["political_leaning"] = leaning
+                        if article["url"] not in seen_urls:
+                            seen_urls.add(article["url"])
+                            
+                            # Assign political_score based on leaning
+                            if leaning == "left":
+                                article["political_score"] = random.uniform(1.0, 4.0)
+                            elif leaning == "center":
+                                article["political_score"] = random.uniform(4.0, 7.0)
+                            else:
+                                article["political_score"] = random.uniform(7.0, 10.0)
+                                
+                            unique_articles.append(article)
+                
+                # Update the source lists
+                left_sources = [s for s in unique_articles if s["political_leaning"] == "left"]
+                center_sources = [s for s in unique_articles if s["political_leaning"] == "center"]
+                right_sources = [s for s in unique_articles if s["political_leaning"] == "right"]
+                
+                logger.info(
+                    f"Updated article distribution after re-query - Left: {len(left_sources)}, Center: {len(center_sources)}, Right: {len(right_sources)}"
+                )
+
         # Calculate how many of each to include to ensure balance
         per_category = max(1, request.limit // 3)
 
@@ -923,18 +986,7 @@ async def query(request: NewsRequest):
                     except Exception as e:
                         logger.error(f"Error scraping replacement source: {str(e)}")
         
-        # Store the query and results in cache
-        try:
-            await queries_collection.insert_one({
-                "query": request.query,
-                "query_hash": query_hash,
-                "timestamp": datetime.now().isoformat(),
-                "source_ids": source_ids
-            })
-            logger.info(f"Cached query results for: {request.query}")
-        except Exception as e:
-            logger.error(f"Error caching query: {str(e)}")
-        
+    
         # Calculate statistics
         left_count = sum(1 for s in enriched_sources if s.political_leaning == "left")
         center_count = sum(1 for s in enriched_sources if s.political_leaning == "center")
@@ -1291,4 +1343,3 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

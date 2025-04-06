@@ -71,6 +71,7 @@ function RegistrationPage({ onLogin }) {
         onLogin(data.userId);
         // Redirect to the main search bar page
         navigate('/');
+        setSuccess(true);
       }
       
     } catch (err) {
