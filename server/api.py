@@ -99,7 +99,7 @@ except Exception as e:
 # Define request and response models
 class NewsRequest(BaseModel):
     query: str
-    limit: Optional[int] = 15  # Default to 15 articles
+    limit: Optional[int] = 27  # Default to 12 articles
     api_key: Optional[str] = None
     user_id: Optional[str] = None
 

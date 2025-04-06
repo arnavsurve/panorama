@@ -22,7 +22,7 @@ function LandingPage() {
         <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
           <button
             onClick={() => navigate('/register')}
-            className="flex-1 p-4 bg-blue-600 text-white rounded-lg transition-colors hover:bg-blue-700 text-lg cursor-pointer"
+            className="flex-1 p-4 bg-gray-600 text-white rounded-lg transition-colors hover:bg-gray-700 text-lg cursor-pointer"
           >
             get started
           </button>
@@ -48,7 +48,7 @@ function MainApp() {
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [selectedSource, setSelectedSource] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem('userId'));
 
   const navigate = useNavigate();
 
@@ -90,6 +90,7 @@ function MainApp() {
       const userId = localStorage.getItem('userId');
       const payload = {
         query: searchQuery,
+        limit: 21,
         user_id: userId,  // include the user id if available
       };
 
@@ -256,29 +257,23 @@ function MainApp() {
           </div>
         )}
 
-      {/* Pong Loading Game */}
-      {loading && (
-        <div className="w-full max-w-xl mx-auto mt-32 mb-16"> {/* Increased top and bottom margins further */}
-          {/* Error message - moved here to be between search bar and game */}
-          {error && (
-            <div className="w-full max-w-xl mx-auto mb-6 text-red-400 text-center animate-fade-in">
-              {error}
+        {/* Pong Loading Game */}
+        {loading && (
+          <div className="w-full max-w-xl mx-auto mt-32 mb-16"> {/* Increased top and bottom margins further */}
+            {/* Centered loading message above the game */}
+            <div className="text-center mb-6 text-neutral-400 animate-fade-in-out">
+              {loadingMessage}
             </div>
-          )}
-          {/* Centered loading message above the game */}
-          <div className="text-center mb-6 text-neutral-400 animate-fade-in-out">
-            {loadingMessage}
+            <PongLoadingGame loadingMessage={loadingMessage} />
           </div>
-          <PongLoadingGame loadingMessage={loadingMessage} />
-        </div>
-      )}
-      
-      {/* Error message - only show when not loading */}
-      {error && !loading && (
-        <div className="w-full max-w-xl mx-auto mt-4 text-red-400 text-center animate-fade-in">
-          {error}
-        </div>
-      )}
+        )}
+
+        {/* Error message */}
+        {error && (
+          <div className="w-full max-w-xl mx-auto mt-4 text-red-400 text-center animate-fade-in">
+            {error}
+          </div>
+        )}
       </div>
 
       {/* Selected Source Detail View or Article Grid */}
