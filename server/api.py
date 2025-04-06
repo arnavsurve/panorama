@@ -87,6 +87,8 @@ try:
     sources_collection = db.sources  # Collection to store news responses
     queries_collection = db.queries  # Collection to store queries
     users_collection = db.users  # Collection to store users
+    users_collection = db.users
+    search_history_collection = db.searchHistory
     logger.info(f"Connected to MongoDB database: {db.name}")
 except Exception as e:
     logger.error(f"Failed to connect to MongoDB: {str(e)}")
@@ -98,7 +100,7 @@ class NewsRequest(BaseModel):
     query: str
     limit: Optional[int] = 12  # Default to 12 articles
     api_key: Optional[str] = None
-
+    user_id: Optional[str] = None
 
 class FollowUpRequest(BaseModel):
     question: str
