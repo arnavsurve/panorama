@@ -181,7 +181,7 @@ function MainApp() {
   
   return (
     <div className="min-h-screen bg-neutral-900 text-white font-mono flex flex-col transition-all duration-700 ease-in-out px-4">
-      <div className="w-full fixed top-0 left-0 bg-opacity-100 flex justify-end items-center p-4 shadow-md z-50">
+      <div className="w-full fixed top-0 left-0 bg-opacity-100 flex justify-end items-center p-4 z-50">
         <button className="bg-transparent border-1 text-base cursor-pointer p-2 hover:text-gray-400 rounded-lg" onClick={handleLogout}>log out</button>
       </div>
       {/* Container that manages vertical positioning */}
