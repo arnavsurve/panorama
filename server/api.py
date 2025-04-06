@@ -85,7 +85,7 @@ class NewsRequest(BaseModel):
     query: str
     limit: Optional[int] = 12  # Default to 12 articles
     api_key: Optional[str] = None
-
+    user_id: Optional[str] = None
 
 class FollowUpRequest(BaseModel):
     question: str
@@ -904,6 +904,20 @@ async def query(request: NewsRequest):
         except Exception as e:
             logger.error(f"Error caching query: {str(e)}")
 
+        if request.user_id:
+            try:
+                from bson import ObjectId
+                await users_collection.update_one(
+                    {"_id": ObjectId(request.user_id)},
+                    {"$push": {"searchHistory": {
+                        "query": request.query,
+                        "query_hash": query_hash,
+                        "timestamp": datetime.now().isoformat()
+                    }}}
+                )
+                logger.info(f"Updated search history for user {request.user_id}")
+            except Exception as e:
+                logger.error(f"Failed to update search history for user {request.user_id}: {str(e)}")
         # Calculate statistics
         left_count = sum(1 for s in enriched_sources if s.political_leaning == "left")
         center_count = sum(

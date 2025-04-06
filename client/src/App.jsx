@@ -88,9 +88,11 @@ function MainApp() {
   const fetchResults = async (searchQuery) => {
     try {
       setError(null);
+      const userId = localStorage.getItem('userId');
       const payload = {
         query: searchQuery,
         limit: 12,
+        user_id: userId,  // include the user id if available
       };
       
       // Add API key if available
