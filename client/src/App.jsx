@@ -56,8 +56,6 @@ function MainApp() {
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const { isDarkMode } = useTheme();
 
-  const navigate = useNavigate();
-
   // API URLs
   const API_BASE_URL = 'http://localhost:8000';
   const QUERY_URL = `${API_BASE_URL}/query`;
