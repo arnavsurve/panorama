@@ -11,14 +11,14 @@ const FollowUpQuestion = ({ queryId, userId, onAnswer, isLoading, setIsLoading, 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!question.trim()) return;
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // Prepare articles data
       const articles = articleData || [];
-      
+
       const response = await fetch('http://localhost:8000/multi_followup', {
         method: 'POST',
         headers: {
@@ -54,7 +54,7 @@ const FollowUpQuestion = ({ queryId, userId, onAnswer, isLoading, setIsLoading, 
       <p className="text-neutral-400 text-sm mb-4">
         Ask a question about the news articles above to get more specific information or insights.
       </p>
-      
+
       <form onSubmit={handleSubmit} className="mb-4">
         <div className="relative">
           <input
@@ -88,33 +88,33 @@ const FollowUpQuestion = ({ queryId, userId, onAnswer, isLoading, setIsLoading, 
       {answer && (
         <div className="p-4 bg-neutral-800 rounded-lg">
           <div className="flex justify-between items-center mb-2">
-            <button 
+            <button
               onClick={() => setShowAnswer(!showAnswer)}
-              className="text-[#4A5565] hover:text-[#5A6575] focus:outline-none p-1 rounded-full hover:bg-neutral-700/50 transition-all"  
+              className="text-[#4A5565] hover:text-[#5A6575] focus:outline-none p-1 rounded-full hover:bg-neutral-700/50 transition-all"
               aria-label={showAnswer ? "Hide answer" : "Show answer"}
             >
-              {showAnswer ? <FaEye size={16} /> : <FaEyeSlash size={16} />}
+              {showAnswer ? <FaEye className='cursor-pointer' size={16} /> : <FaEyeSlash className='cursor-pointer' size={16} />}
             </button>
           </div>
-          
+
           {showAnswer && (
-            <>  
+            <>
               <h4 className="font-medium text-[#4A5565] mb-2">Answer:</h4>
               <div className="text-neutral-200 mb-3 markdown-content">
                 <ReactMarkdown>
                   {answer.answer}
                 </ReactMarkdown>
               </div>
-              
+
               {answer.articles && answer.articles.length > 0 && (
                 <div className="mt-4">
                   <h5 className="text-sm text-neutral-400 mb-2">Based on information from:</h5>
                   <ol className="text-xs text-neutral-500 list-decimal pl-5 space-y-1">
                     {answer.articles.map((article, index) => (
                       <li key={index}>
-                        <a 
-                          href={article.url} 
-                          target="_blank" 
+                        <a
+                          href={article.url}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-[#4A5565] hover:text-[#5A6575] hover:underline"
                         >
